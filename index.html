@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>English Game</title>
+<title>English Escape Rooms</title>
 <style>
   :root {
     --bg: #f4f6fb; --card: #ffffff; --ink: #1f2933; --muted: #667085;
@@ -24,13 +24,29 @@
 
   .chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
   .chip { font-size: 13px; color: var(--muted); background: var(--bg); border: 1px solid var(--edge); padding: 4px 12px; border-radius: 999px; }
-  h1 { font-size: 28px; margin: 8px 0 4px; }
+  h1 { font-size: 26px; margin: 8px 0 4px; }
   .sub { color: var(--muted); margin: 6px 0; }
 
   .btn { appearance: none; border: 1px solid transparent; border-radius: 12px; cursor: pointer; font: inherit; font-weight: 600; padding: 14px 18px; min-height: 48px; width: 100%; }
   .btn-primary { background: var(--brand); color: #fff; }
   .btn-primary:hover { filter: brightness(1.07); }
-  .btn:focus-visible, .option:focus-visible, .blank:focus-visible, .tile:focus-visible, .word-chip:focus-visible, .btn-speak:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+  .btn:focus-visible, .option:focus-visible, .blank:focus-visible, .tile:focus-visible, .word-chip:focus-visible, .btn-speak:focus-visible, .group-card:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+
+  /* lobby (group selection) */
+  .groups { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 18px; }
+  @media (min-width: 480px) { .groups { grid-template-columns: 1fr 1fr; } }
+  .group-card {
+    appearance: none; text-align: left; background: #fff; border: 1px solid var(--edge);
+    border-radius: 14px; cursor: pointer; padding: 12px 14px; font: inherit; min-height: 70px;
+    display: grid; grid-template-columns: 42px 1fr; column-gap: 12px; align-items: center;
+  }
+  .group-card:hover { border-color: var(--brand); }
+  .group-card .ge { font-size: 28px; grid-row: span 2; }
+  .group-card .gt { font-weight: 700; font-size: 15px; }
+  .group-card .gg { color: var(--brand); font-weight: 600; font-size: 13px; }
+  .back { margin: 16px 0 0; }
+  .back a { color: var(--muted); font-size: 14px; text-decoration: none; }
+  .back a:hover { color: var(--brand); }
 
   .room-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
   .room-title { font-size: 18px; font-weight: 700; }
@@ -103,15 +119,23 @@
 <body>
 <main class="app">
 
-  <!-- ============ START SCREEN ============ -->
-  <section id="screen-start" class="card center">
-    <div class="chips"><span class="chip" id="chip-level"></span><span class="chip" id="chip-rooms"></span></div>
+  <!-- ============ LOBBY: GROUP SELECTION ============ -->
+  <section id="screen-lobby" class="card center">
+    <div class="chips"><span class="chip">Level A2–B1</span><span class="chip">8 rooms · one letter each</span></div>
+    <h1>English Escape Rooms</h1>
+    <p class="sub">Eight groups · eight adventures. Every group plays the same challenges
+      with a different travel story. Pick your group and save your friend!</p>
+    <div class="groups" id="groups"></div>
+  </section>
+
+  <!-- ============ STORY START SCREEN ============ -->
+  <section id="screen-start" class="card center" hidden>
+    <div class="chips"><span class="chip" id="chip-level"></span><span class="chip" id="chip-group"></span></div>
     <h1 id="start-title"></h1>
-    <p class="sub">An English escape room 🏔️</p>
-    <p class="sub">You and your best friend Sam are hiking in the mountains. But on the trail,
-      something happens — and only your English can save the day! Open every room,
-      collect the letters, and call the rescue helicopter.</p>
+    <p class="sub" id="start-sub"></p>
+    <p class="sub" id="start-intro"></p>
     <button class="btn btn-primary" id="btn-start" style="margin-top:16px">▶ Start the adventure</button>
+    <p class="back"><a href="#" id="link-back-start">← All groups</a></p>
   </section>
 
   <!-- ============ ROOM SCREEN ============ -->
@@ -146,6 +170,7 @@
       <ul class="misses" id="end-misses"></ul>
     </div>
     <button class="btn btn-primary" id="btn-replay">↻ Play again</button>
+    <p class="back"><a href="#" id="link-back-end">← All groups</a></p>
   </section>
 
   <footer>Single-file game · works offline · ready for GitHub Pages</footer>
@@ -155,149 +180,1133 @@
 "use strict";
 
 /* ============================================================
-   1) EDIT THIS SECTION — game settings
+   1) GAME SETTINGS
    ============================================================ */
 const CONFIG = {
-  title: "The Mountain Rescue",
+  title: "English Escape Rooms",
   level: "A2–B1",          // average CEFR level — molds difficulty
-  codeWord: "RESCUED",     // one letter is collected per room
   delayMs: 700,            // pause between puzzle items
   speechRate: 0.9,         // TTS speed (A2–B1 pace)
 };
 
 /* ============================================================
-   2) THE ROOMS — one per learning objective (edit content here)
+   2) THE EIGHT STORIES — one per group. Same rooms and
+      learning objectives, different travel adventures.
+      EDIT HERE: stories, friends, accidents, words, code words.
    ============================================================ */
-const ROOMS = [
-  {
-    name: "Pack Your Bag", emoji: "🎒", type: "sort", reward: "R",
-    objective: "Travel, adventure activities and packing essentials",
-    story: "Tomorrow you and Sam start your adventure: hiking and camping in the mountains. Pack your backpack — take the things you need and leave the rest at home!",
-    items: [
-      { text: "first-aid kit",  emoji: "🩹", take: true },
-      { text: "water bottle",  emoji: "🚰", take: true },
-      { text: "map",            emoji: "🗺️", take: true },
-      { text: "hiking boots",   emoji: "🥾", take: true },
-      { text: "rain jacket",    emoji: "🧥", take: true },
-      { text: "climbing helmet", emoji: "⛑️", take: true },
-      { text: "big pillow",     emoji: "🛏️", take: false },
-      { text: "teddy bear",     emoji: "🧸", take: false },
-      { text: "television",      emoji: "📺", take: false },
-      { text: "high heels",     emoji: "👠", take: false },
-      { text: "guitar",          emoji: "🎸", take: false },
-      { text: "heavy books",     emoji: "📚", take: false },
-    ],
-  },
-  {
-    name: "Finding the Way", emoji: "🧭", type: "quiz", reward: "E",
-    objective: "Distances and specific locations",
-    story: "Day two. You and Sam are on the mountain trail with your backpacks. Follow the signs to the village — read them carefully!",
-    items: [
-      { prompt: "The village is three kilometres ___.", options: ["away", "far", "long", "much"], answer: "away",
-        explain: "We say: three kilometres away." },
-      { prompt: "The pharmacy is ___ the bank and the café.", options: ["between", "far", "next", "away"], answer: "between",
-        explain: "One thing between two other things." },
-      { prompt: "— How ___ is the campsite? — About two kilometres.", options: ["far", "many", "much", "old"], answer: "far",
-        explain: "How far…? asks about distance." },
-      { prompt: "Go ___ and turn left at the church.", options: ["straight", "away", "far", "much"], answer: "straight",
-        explain: "Go straight = continue in the same direction." },
-      { prompt: "The mountain hut is ___ the top of the mountain.", options: ["at", "far", "along", "away"], answer: "at",
-        explain: "At the top, at the bottom, at the end." },
-    ],
-  },
-  {
-    name: "What Happened?", emoji: "🚑", type: "fillbank", reward: "S",
-    objective: "Reporting events and actions — past tense",
-    story: "Oh no! Sam slipped on a wet rock and fell. You tell the story of yesterday on the radio. Tap the correct past form for each verb — the selected blank is blue.",
-    text: [
-      "Yesterday morning, Sam and I ", { base: "go", answer: "went" }, " hiking in the mountains. ",
-      "Then Sam ", { base: "slip", answer: "slipped" }, " on a wet rock and ", { base: "fall", answer: "fell" },
-      " on the ground. She ", { base: "shout", answer: "shouted" }, " for help, so I ", { base: "run", answer: "ran" },
-      " to her fast. Her ankle ", { base: "hurt", answer: "hurt" }, " a lot. ",
-      "Later, I ", { base: "call", answer: "called" }, " the mountain rescue team.",
-    ],
-  },
-  {
-    name: "What's Wrong?", emoji: "🤕", type: "match", reward: "C",
-    objective: "Health conditions and injuries",
-    story: "The mountain rescue team is on the phone. They ask about Sam's condition. Match each picture with the correct problem — tap a picture, then tap its phrase.",
-    pairs: [
-      { emoji: "🤕", text: "My head hurts." },
-      { emoji: "🦶", text: "My ankle is twisted." },
-      { emoji: "🩹", text: "There is a cut on her leg." },
-      { emoji: "😵", text: "She feels dizzy." },
-      { emoji: "🌡️", text: "She has a high temperature." },
-      { emoji: "🦴", text: "She can't move her arm." },
-    ],
-  },
-  {
-    name: "Get Help", emoji: "💊", type: "quiz", reward: "U",
-    objective: "Advisability, necessity and obligation — should / must / need to",
-    story: "The rescuer gives you instructions for emergencies. Read the hint in brackets and choose the right word!",
-    items: [
-      { prompt: "You ___ call the emergency number now. (an order — very important!)",
-        options: ["must", "should", "can", "need to"], answer: "must", explain: "must = a strong order." },
-      { prompt: "Sam ___ see a doctor soon. (a good idea)",
-        options: ["should", "mustn't", "can't", "don't have to"], answer: "should", explain: "should = good advice." },
-      { prompt: "We ___ buy more bandages before the next trip. (it is necessary)",
-        options: ["need to", "mustn't", "can't", "shouldn't"], answer: "need to", explain: "need to = necessity." },
-      { prompt: "You ___ move Sam's leg. It is dangerous! (never do this)",
-        options: ["mustn't", "don't have to", "should", "need to"], answer: "mustn't", explain: "mustn't = it is forbidden." },
-      { prompt: "You ___ pay for mountain rescue here. It is free! (not necessary)",
-        options: ["don't have to", "mustn't", "can't", "shouldn't"], answer: "don't have to", explain: "don't have to = not necessary." },
-      { prompt: "When you hike, you ___ drink lots of water. (good advice in general)",
-        options: ["should", "must", "can't", "mustn't"], answer: "should", explain: "should = general advice." },
-    ],
-  },
-  {
-    name: "Make a Plan", emoji: "🗣️", type: "quiz", reward: "E",
-    objective: "Asking for and responding to suggestions",
-    story: "While you wait for the helicopter, another hiker, Marta, arrives to help. Choose the best reply in each conversation!",
-    items: [
-      { prompt: "Marta: “Why don't we put up the tent here?” — You:",
-        options: ["Good idea! It's flat here.", "No, thank you. I'm fine.", "Sorry, I have a headache.", "It's three kilometres away."],
-        answer: "Good idea! It's flat here.", explain: "Good idea! = a positive answer to a suggestion." },
-      { prompt: "You want Marta's suggestion. What do you say?",
-        options: ["What should we do now?", "You must do it now.", "I called yesterday.", "How far is the village?"],
-        answer: "What should we do now?", explain: "What should we do? = asking for a suggestion." },
-      { prompt: "Marta: “Let's call the rescue team again.” — You:",
-        options: ["OK, I'll call them now.", "Yes, it's very far away.", "My arm hurts.", "You shouldn't call."],
-        answer: "OK, I'll call them now.", explain: "OK, I'll… = accepting a suggestion." },
-      { prompt: "You want to suggest an idea. What do you say?",
-        options: ["How about staying here until help comes?", "You must stay here!", "I stayed here yesterday.", "Is the pharmacy far?"],
-        answer: "How about staying here until help comes?", explain: "How about…? = making a suggestion." },
-      { prompt: "Marta: “We could make a fire to keep warm.” — You:",
-        options: ["I'd rather not — it's too windy here.", "No! Never! Sit down!", "Fire is three kilometres away.", "I can't make a fire."],
-        answer: "I'd rather not — it's too windy here.", explain: "I'd rather not = a polite 'no'." },
-    ],
-  },
-  {
-    name: "Say That Again", emoji: "🔊", type: "quiz", reward: "D",
-    objective: "Listening and requesting repetition",
-    story: "The rescue helicopter pilot is talking to you on the radio. Listen carefully — you can press the button to hear each message again.",
-    items: [
-      { speak: "The helicopter is arriving in ten minutes.", prompt: "When is the helicopter arriving?",
-        options: ["In ten minutes.", "In two minutes.", "Tomorrow morning.", "After the rain."],
-        answer: "In ten minutes." },
-      { speak: "Please stay near the big rock. It is easy to see from the air.", prompt: "Where must you stay?",
-        options: ["Near the big rock.", "Near the river.", "In the village.", "At the pharmacy."],
-        answer: "Near the big rock." },
-      { speak: "Sam needs warm clothes and some water.", prompt: "What does Sam need?",
-        options: ["Warm clothes and water.", "A new map and compass.", "Food from the café.", "A taxi to the village."],
-        answer: "Warm clothes and water." },
-      { speak: "Hello, this is Rescue One. Can you hear me? Over.", prompt: "The pilot asks if you can hear. What do you say?",
-        options: ["Yes, I can hear you. Over.", "No, thank you.", "My name is Sam.", "It is very far away."],
-        answer: "Yes, I can hear you. Over.", explain: "On the radio, we say 'Over' at the end." },
-      { speak: "Rescue One to ground team: please confirm your position at the north checkpoint, over.", prompt: "The pilot speaks very fast and you don't understand. What do you say?",
-        options: ["Sorry, could you say that again, please?", "You must repeat that now!", "I say it again, don't worry.", "Can you write that for me?"],
-        answer: "Sorry, could you say that again, please?", explain: "Could you say that again, please? = a polite request for repetition." },
-    ],
-  },
-  {
-    name: "The Rescue Code", emoji: "🚁", type: "code",
-    objective: "The rescue!",
-    story: "The helicopter is above you! To open the door and radio the team, enter the secret code word. Tap the seven letters in the correct order — look at the tray at the top!",
-  },
+const STORIES = [
+{
+  name: "The Mountain Rescue", emoji: "🏔️", group: 1,
+  intro: "You and your best friend Sam are hiking in the mountains. But on the trail, something happens — and only your English can save the day!",
+  codeWord: "RESCUED",
+  codeHint: "the code is what the helicopter does to Sam — the past of “rescue”.",
+  endTitle: "🏆 Sam is rescued!",
+  endText: "The helicopter flies Sam to the hospital. One week later, she is well again — and you are the hero of the mountains! 🎉",
+  rooms: [
+    {
+      name: "Pack Your Bag", emoji: "🎒", type: "sort", reward: "R",
+      objective: "Travel, adventure activities and packing essentials",
+      story: "Tomorrow you and Sam start your adventure: hiking and camping in the mountains. Pack your backpack — take the things you need and leave the rest at home!",
+      items: [
+        { text: "first-aid kit",  emoji: "🩹", take: true },
+        { text: "water bottle",  emoji: "🚰", take: true },
+        { text: "map",            emoji: "🗺️", take: true },
+        { text: "hiking boots",   emoji: "🥾", take: true },
+        { text: "rain jacket",    emoji: "🧥", take: true },
+        { text: "climbing helmet", emoji: "⛑️", take: true },
+        { text: "big pillow",     emoji: "🛏️", take: false },
+        { text: "teddy bear",     emoji: "🧸", take: false },
+        { text: "television",      emoji: "📺", take: false },
+        { text: "high heels",     emoji: "👠", take: false },
+        { text: "guitar",          emoji: "🎸", take: false },
+        { text: "heavy books",     emoji: "📚", take: false },
+      ],
+    },
+    {
+      name: "Finding the Way", emoji: "🧭", type: "quiz", reward: "E",
+      objective: "Distances and specific locations",
+      story: "Day two. You and Sam are on the mountain trail with your backpacks. Follow the signs to the village — read them carefully!",
+      items: [
+        { prompt: "The village is three kilometres ___.", options: ["away", "far", "long", "much"], answer: "away",
+          explain: "We say: three kilometres away." },
+        { prompt: "The pharmacy is ___ the bank and the café.", options: ["between", "far", "next", "away"], answer: "between",
+          explain: "One thing between two other things." },
+        { prompt: "— How ___ is the campsite? — About two kilometres.", options: ["far", "many", "much", "old"], answer: "far",
+          explain: "How far…? asks about distance." },
+        { prompt: "Go ___ and turn left at the church.", options: ["straight", "away", "far", "much"], answer: "straight",
+          explain: "Go straight = continue in the same direction." },
+        { prompt: "The mountain hut is ___ the top of the mountain.", options: ["at", "far", "along", "away"], answer: "at",
+          explain: "At the top, at the bottom, at the end." },
+      ],
+    },
+    {
+      name: "What Happened?", emoji: "🚑", type: "fillbank", reward: "S",
+      objective: "Reporting events and actions — past tense",
+      story: "Oh no! Sam slipped on a wet rock and fell. You tell the story of yesterday on the radio. Tap the correct past form for each verb — the selected blank is blue.",
+      text: [
+        "Yesterday morning, Sam and I ", { base: "go", answer: "went" }, " hiking in the mountains. ",
+        "Then Sam ", { base: "slip", answer: "slipped" }, " on a wet rock and ", { base: "fall", answer: "fell" },
+        " on the ground. She ", { base: "shout", answer: "shouted" }, " for help, so I ", { base: "run", answer: "ran" },
+        " to her fast. Her ankle ", { base: "hurt", answer: "hurt" }, " a lot. ",
+        "Later, I ", { base: "call", answer: "called" }, " the mountain rescue team.",
+      ],
+    },
+    {
+      name: "What's Wrong?", emoji: "🤕", type: "match", reward: "C",
+      objective: "Health conditions and injuries",
+      story: "The mountain rescue team is on the phone. They ask about Sam's condition. Match each picture with the correct problem — tap a picture, then tap its phrase.",
+      pairs: [
+        { emoji: "🤕", text: "My head hurts." },
+        { emoji: "🦶", text: "My ankle is twisted." },
+        { emoji: "🩹", text: "There is a cut on her leg." },
+        { emoji: "😵", text: "She feels dizzy." },
+        { emoji: "🌡️", text: "She has a high temperature." },
+        { emoji: "🦴", text: "She can't move her arm." },
+      ],
+    },
+    {
+      name: "Get Help", emoji: "💊", type: "quiz", reward: "U",
+      objective: "Advisability, necessity and obligation — should / must / need to",
+      story: "The rescuer gives you instructions for emergencies. Read the hint in brackets and choose the right word!",
+      items: [
+        { prompt: "You ___ call the emergency number now. (an order — very important!)",
+          options: ["must", "should", "can", "need to"], answer: "must", explain: "must = a strong order." },
+        { prompt: "Sam ___ see a doctor soon. (a good idea)",
+          options: ["should", "mustn't", "can't", "don't have to"], answer: "should", explain: "should = good advice." },
+        { prompt: "We ___ buy more bandages before the next trip. (it is necessary)",
+          options: ["need to", "mustn't", "can't", "shouldn't"], answer: "need to", explain: "need to = necessity." },
+        { prompt: "You ___ move Sam's leg. It is dangerous! (never do this)",
+          options: ["mustn't", "don't have to", "should", "need to"], answer: "mustn't", explain: "mustn't = it is forbidden." },
+        { prompt: "You ___ pay for mountain rescue here. It is free! (not necessary)",
+          options: ["don't have to", "mustn't", "can't", "shouldn't"], answer: "don't have to", explain: "don't have to = not necessary." },
+        { prompt: "When you hike, you ___ drink lots of water. (good advice in general)",
+          options: ["should", "must", "can't", "mustn't"], answer: "should", explain: "should = general advice." },
+      ],
+    },
+    {
+      name: "Make a Plan", emoji: "🗣️", type: "quiz", reward: "E",
+      objective: "Asking for and responding to suggestions",
+      story: "While you wait for the helicopter, another hiker, Marta, arrives to help. Choose the best reply in each conversation!",
+      items: [
+        { prompt: "Marta: “Why don't we put up the tent here?” — You:",
+          options: ["Good idea! It's flat here.", "No, thank you. I'm fine.", "Sorry, I have a headache.", "It's three kilometres away."],
+          answer: "Good idea! It's flat here.", explain: "Good idea! = a positive answer to a suggestion." },
+        { prompt: "You want Marta's suggestion. What do you say?",
+          options: ["What should we do now?", "You must do it now.", "I called yesterday.", "How far is the village?"],
+          answer: "What should we do now?", explain: "What should we do? = asking for a suggestion." },
+        { prompt: "Marta: “Let's call the rescue team again.” — You:",
+          options: ["OK, I'll call them now.", "Yes, it's very far away.", "My arm hurts.", "You shouldn't call."],
+          answer: "OK, I'll call them now.", explain: "OK, I'll… = accepting a suggestion." },
+        { prompt: "You want to suggest an idea. What do you say?",
+          options: ["How about staying here until help comes?", "You must stay here!", "I stayed here yesterday.", "Is the pharmacy far?"],
+          answer: "How about staying here until help comes?", explain: "How about…? = making a suggestion." },
+        { prompt: "Marta: “We could make a fire to keep warm.” — You:",
+          options: ["I'd rather not — it's too windy here.", "No! Never! Sit down!", "Fire is three kilometres away.", "I can't make a fire."],
+          answer: "I'd rather not — it's too windy here.", explain: "I'd rather not = a polite 'no'." },
+      ],
+    },
+    {
+      name: "Say That Again", emoji: "🔊", type: "quiz", reward: "D",
+      objective: "Listening and requesting repetition",
+      story: "The rescue helicopter pilot is talking to you on the radio. Listen carefully — you can press the button to hear each message again.",
+      items: [
+        { speak: "The helicopter is arriving in ten minutes.", prompt: "When is the helicopter arriving?",
+          options: ["In ten minutes.", "In two minutes.", "Tomorrow morning.", "After the rain."],
+          answer: "In ten minutes." },
+        { speak: "Please stay near the big rock. It is easy to see from the air.", prompt: "Where must you stay?",
+          options: ["Near the big rock.", "Near the river.", "In the village.", "At the pharmacy."],
+          answer: "Near the big rock." },
+        { speak: "Sam needs warm clothes and some water.", prompt: "What does Sam need?",
+          options: ["Warm clothes and water.", "A new map and compass.", "Food from the café.", "A taxi to the village."],
+          answer: "Warm clothes and water." },
+        { speak: "Hello, this is Rescue One. Can you hear me? Over.", prompt: "The pilot asks if you can hear. What do you say?",
+          options: ["Yes, I can hear you. Over.", "No, thank you.", "My name is Sam.", "It is very far away."],
+          answer: "Yes, I can hear you. Over.", explain: "On the radio, we say 'Over' at the end." },
+        { speak: "Rescue One to ground team: please confirm your position at the north checkpoint, over.", prompt: "The pilot speaks very fast and you don't understand. What do you say?",
+          options: ["Sorry, could you say that again, please?", "You must repeat that now!", "I say it again, don't worry.", "Can you write that for me?"],
+          answer: "Sorry, could you say that again, please?", explain: "Could you say that again, please? = a polite request for repetition." },
+      ],
+    },
+    {
+      name: "The Rescue Code", emoji: "🚁", type: "code",
+      objective: "The rescue!",
+      story: "The helicopter is above you! To open the door and radio the team, enter the secret code word. Tap the seven letters in the correct order — look at the tray at the top!",
+    },
+  ],
+},
+{
+  name: "The Desert Caravan", emoji: "🐪", group: 2,
+  intro: "You and your friend Omar are crossing the desert with a camel caravan. The sun is hot, the dunes are deep — and something happens on the sand!",
+  codeWord: "CARAVAN",
+  codeHint: "the code is a long line of desert travellers — with camels!",
+  endTitle: "🏆 Omar is safe!",
+  endText: "The 4x4 drives Omar to the desert clinic. One week later, he is well again — and you are the hero of the dunes! 🎉",
+  rooms: [
+    {
+      name: "Pack Your Bag", emoji: "🎒", type: "sort", reward: "C",
+      objective: "Travel, adventure activities and packing essentials",
+      story: "Tomorrow you and Omar join a camel caravan across the desert. Pack your backpack — take the things you need and leave the rest at home!",
+      items: [
+        { text: "water bottle",  emoji: "🚰", take: true },
+        { text: "first-aid kit", emoji: "🩹", take: true },
+        { text: "sun hat",       emoji: "👒", take: true },
+        { text: "map",            emoji: "🗺️", take: true },
+        { text: "sunglasses",     emoji: "🕶️", take: true },
+        { text: "desert boots",   emoji: "🥾", take: true },
+        { text: "winter coat",    emoji: "🧥", take: false },
+        { text: "ice skates",     emoji: "⛸️", take: false },
+        { text: "snowboard",      emoji: "🏂", take: false },
+        { text: "umbrella",       emoji: "☂️", take: false },
+        { text: "television",     emoji: "📺", take: false },
+        { text: "guitar",         emoji: "🎸", take: false },
+      ],
+    },
+    {
+      name: "Finding the Way", emoji: "🧭", type: "quiz", reward: "A",
+      objective: "Distances and specific locations",
+      story: "Day two. You and Omar are crossing the dunes with the caravan. Follow the guide's signs to the oasis — read them carefully!",
+      items: [
+        { prompt: "The oasis is four kilometres ___.", options: ["away", "far", "long", "much"], answer: "away",
+          explain: "We say: four kilometres away." },
+        { prompt: "The water station is ___ the tents and the big rock.", options: ["between", "far", "next", "away"], answer: "between",
+          explain: "One thing between two other things." },
+        { prompt: "— How ___ is the next camp? — About three kilometres.", options: ["far", "many", "much", "old"], answer: "far",
+          explain: "How far…? asks about distance." },
+        { prompt: "Go ___ and turn right at the tall cactus.", options: ["straight", "away", "far", "much"], answer: "straight",
+          explain: "Go straight = continue in the same direction." },
+        { prompt: "The caravan master waits ___ the top of the dune.", options: ["at", "far", "along", "away"], answer: "at",
+          explain: "At the top, at the bottom, at the end." },
+      ],
+    },
+    {
+      name: "What Happened?", emoji: "🚑", type: "fillbank", reward: "R",
+      objective: "Reporting events and actions — past tense",
+      story: "Omar didn't listen — he climbed a dune alone. Tell the story of yesterday on the radio. Tap the correct past form for each verb — the selected blank is blue.",
+      text: [
+        "Yesterday, Omar and I ", { base: "go", answer: "went" }, " on a camel trek. Omar ", { base: "ride", answer: "rode" },
+        " his camel fast. Then he ", { base: "climb", answer: "climbed" }, " a big dune and ", { base: "jump", answer: "jumped" },
+        " down. He ", { base: "fall", answer: "fell" }, " on the sand and ", { base: "hurt", answer: "hurt" },
+        " his wrist. I ", { base: "call", answer: "called" }, " the desert guide.",
+      ],
+    },
+    {
+      name: "What's Wrong?", emoji: "🤕", type: "match", reward: "A",
+      objective: "Health conditions and injuries",
+      story: "The desert guide is on the phone. He asks about Omar's condition. Match each picture with the correct problem — tap a picture, then tap its phrase.",
+      pairs: [
+        { emoji: "🤕", text: "His head hurts from the sun." },
+        { emoji: "🦶", text: "His ankle is twisted." },
+        { emoji: "🩹", text: "There is a cut on his hand." },
+        { emoji: "😵", text: "He feels dizzy in the heat." },
+        { emoji: "🌡️", text: "He has a high temperature." },
+        { emoji: "🦴", text: "He can't move his wrist." },
+      ],
+    },
+    {
+      name: "Get Help", emoji: "💊", type: "quiz", reward: "V",
+      objective: "Advisability, necessity and obligation — should / must / need to",
+      story: "The guide gives you instructions for desert emergencies. Read the hint in brackets and choose the right word!",
+      items: [
+        { prompt: "You ___ rest in the shade now. (an order — very important!)",
+          options: ["must", "should", "can", "need to"], answer: "must", explain: "must = a strong order." },
+        { prompt: "Omar ___ drink water slowly. (a good idea)",
+          options: ["should", "mustn't", "can't", "don't have to"], answer: "should", explain: "should = good advice." },
+        { prompt: "We ___ put up the tent before dark. (it is necessary)",
+          options: ["need to", "mustn't", "can't", "shouldn't"], answer: "need to", explain: "need to = necessity." },
+        { prompt: "You ___ walk in the sun at midday. It is dangerous! (never do this)",
+          options: ["mustn't", "don't have to", "should", "need to"], answer: "mustn't", explain: "mustn't = it is forbidden." },
+        { prompt: "You ___ pay the desert guide. He works for the park! It is free. (not necessary)",
+          options: ["don't have to", "mustn't", "can't", "shouldn't"], answer: "don't have to", explain: "don't have to = not necessary." },
+        { prompt: "In the desert, you ___ cover your head in the sun. (good advice in general)",
+          options: ["should", "must", "can't", "mustn't"], answer: "should", explain: "should = general advice." },
+      ],
+    },
+    {
+      name: "Make a Plan", emoji: "🗣️", type: "quiz", reward: "A",
+      objective: "Asking for and responding to suggestions",
+      story: "While you wait for the 4x4, another traveller, Amina, stops to help. Choose the best reply in each conversation!",
+      items: [
+        { prompt: "Amina: “Why don't we move Omar into the shade?” — You:",
+          options: ["Good idea! The tent is cooler there.", "No, thank you. I'm fine.", "Sorry, I have a headache.", "It's four kilometres away."],
+          answer: "Good idea! The tent is cooler there.", explain: "Good idea! = a positive answer to a suggestion." },
+        { prompt: "You want Amina's suggestion. What do you say?",
+          options: ["What should we do now?", "You must do it now.", "I called yesterday.", "How far is the oasis?"],
+          answer: "What should we do now?", explain: "What should we do? = asking for a suggestion." },
+        { prompt: "Amina: “Let's give Omar some water.” — You:",
+          options: ["OK, I'll give him the bottle.", "Yes, it's very far away.", "My arm hurts.", "You shouldn't call."],
+          answer: "OK, I'll give him the bottle.", explain: "OK, I'll… = accepting a suggestion." },
+        { prompt: "You want to suggest an idea. What do you say?",
+          options: ["How about resting until the sun goes down?", "You must rest here!", "I rested here yesterday.", "Is the oasis far?"],
+          answer: "How about resting until the sun goes down?", explain: "How about…? = making a suggestion." },
+        { prompt: "Amina: “We could walk to the oasis in the dark.” — You:",
+          options: ["I'd rather not — it's too cold at night.", "No! Never! Sit down!", "The oasis is four kilometres away.", "I can't walk in the dark."],
+          answer: "I'd rather not — it's too cold at night.", explain: "I'd rather not = a polite 'no'." },
+      ],
+    },
+    {
+      name: "Say That Again", emoji: "🔊", type: "quiz", reward: "N",
+      objective: "Listening and requesting repetition",
+      story: "The rescue 4x4 driver is talking to you on the radio. Listen carefully — you can press the button to hear each message again.",
+      items: [
+        { speak: "The four-by-four is arriving in twenty minutes.", prompt: "When is the 4x4 arriving?",
+          options: ["In twenty minutes.", "In two minutes.", "Tomorrow morning.", "After the rain."],
+          answer: "In twenty minutes." },
+        { speak: "Please wait near the tall cactus. It is easy to see from the dunes.", prompt: "Where must you wait?",
+          options: ["Near the tall cactus.", "Near the tents.", "In the village.", "At the water station."],
+          answer: "Near the tall cactus." },
+        { speak: "Omar needs a cool drink and some shade.", prompt: "What does Omar need?",
+          options: ["A cool drink and some shade.", "A new map and compass.", "Food from the café.", "A taxi to the oasis."],
+          answer: "A cool drink and some shade." },
+        { speak: "Hello, this is Desert Base. Can you hear me? Over.", prompt: "The driver asks if you can hear. What do you say?",
+          options: ["Yes, I can hear you. Over.", "No, thank you.", "My name is Omar.", "It is very far away."],
+          answer: "Yes, I can hear you. Over.", explain: "On the radio, we say 'Over' at the end." },
+        { speak: "Desert Base to caravan team: please confirm your position at the east dune, over.", prompt: "The driver speaks very fast and you don't understand. What do you say?",
+          options: ["Sorry, could you say that again, please?", "You must repeat that now!", "I say it again, don't worry.", "Can you write that for me?"],
+          answer: "Sorry, could you say that again, please?", explain: "Could you say that again, please? = a polite request for repetition." },
+      ],
+    },
+    {
+      name: "The Rescue Code", emoji: "🚙", type: "code",
+      objective: "The rescue!",
+      story: "The 4x4 is on the top of the dune! To open the door and radio the team, enter the secret code word. Tap the seven letters in the correct order — look at the tray at the top!",
+    },
+  ],
+},
+{
+  name: "The Amazon Expedition", emoji: "🌴", group: 3,
+  intro: "You and your friend Ravi are exploring the Amazon rainforest by canoe. The river is fast, the jungle is loud — and something happens near the waterfall!",
+  codeWord: "EXPLORE",
+  codeHint: "the code is what brave travellers do in the jungle.",
+  endTitle: "🏆 Ravi is safe!",
+  endText: "The motorboat takes Ravi to the river clinic. One week later, he is well again — and you are the hero of the rainforest! 🎉",
+  rooms: [
+    {
+      name: "Pack Your Bag", emoji: "🎒", type: "sort", reward: "E",
+      objective: "Travel, adventure activities and packing essentials",
+      story: "Tomorrow you and Ravi paddle into the rainforest. Pack your backpack — take the things you need and leave the rest at home!",
+      items: [
+        { text: "water bottle",  emoji: "🚰", take: true },
+        { text: "first-aid kit", emoji: "🩹", take: true },
+        { text: "map",            emoji: "🗺️", take: true },
+        { text: "jungle boots",  emoji: "🥾", take: true },
+        { text: "rain jacket",    emoji: "🧥", take: true },
+        { text: "torch",          emoji: "🔦", take: true },
+        { text: "sled",           emoji: "🛷", take: false },
+        { text: "ice skates",     emoji: "⛸️", take: false },
+        { text: "snowboard",      emoji: "🏂", take: false },
+        { text: "television",     emoji: "📺", take: false },
+        { text: "guitar",         emoji: "🎸", take: false },
+        { text: "pillow",         emoji: "🛏️", take: false },
+      ],
+    },
+    {
+      name: "Finding the Way", emoji: "🧭", type: "quiz", reward: "X",
+      objective: "Distances and specific locations",
+      story: "Day two. You and Ravi are paddling up the river. Follow the guide's signs to the jungle camp — read them carefully!",
+      items: [
+        { prompt: "The jungle camp is two kilometres ___.", options: ["away", "far", "long", "much"], answer: "away",
+          explain: "We say: two kilometres away." },
+        { prompt: "The lodge is ___ the river and the waterfall.", options: ["between", "far", "next", "away"], answer: "between",
+          explain: "One thing between two other things." },
+        { prompt: "— How ___ is the waterfall? — About one kilometre.", options: ["far", "many", "much", "old"], answer: "far",
+          explain: "How far…? asks about distance." },
+        { prompt: "Go ___ and turn left at the old bridge.", options: ["straight", "away", "far", "much"], answer: "straight",
+          explain: "Go straight = continue in the same direction." },
+        { prompt: "The bird watching point is ___ the top of the hill.", options: ["at", "far", "along", "away"], answer: "at",
+          explain: "At the top, at the bottom, at the end." },
+      ],
+    },
+    {
+      name: "What Happened?", emoji: "🚑", type: "fillbank", reward: "P",
+      objective: "Reporting events and actions — past tense",
+      story: "Ravi stood up in the canoe — bad idea! Tell the story of yesterday on the radio. Tap the correct past form for each verb — the selected blank is blue.",
+      text: [
+        "Yesterday, Ravi and I ", { base: "take", answer: "took" }, " a canoe up the river. Ravi ",
+        { base: "stand", answer: "stood" }, " up to take a photo. Then he ", { base: "slip", answer: "slipped" },
+        " on a wet stone and ", { base: "fall", answer: "fell" }, " into the water. He ",
+        { base: "swim", answer: "swam" }, " to the bank, but a branch ", { base: "cut", answer: "cut" },
+        " his leg. I ", { base: "call", answer: "called" }, " the jungle guide.",
+      ],
+    },
+    {
+      name: "What's Wrong?", emoji: "🤕", type: "match", reward: "L",
+      objective: "Health conditions and injuries",
+      story: "The jungle guide is on the phone. He asks about Ravi's condition. Match each picture with the correct problem — tap a picture, then tap its phrase.",
+      pairs: [
+        { emoji: "🦟", text: "A mosquito bit his arm." },
+        { emoji: "🦶", text: "His ankle is twisted." },
+        { emoji: "🩹", text: "There is a cut on his leg." },
+        { emoji: "😵", text: "He feels dizzy." },
+        { emoji: "🌡️", text: "He has a high temperature." },
+        { emoji: "🤢", text: "He feels sick — he needs to rest." },
+      ],
+    },
+    {
+      name: "Get Help", emoji: "💊", type: "quiz", reward: "O",
+      objective: "Advisability, necessity and obligation — should / must / need to",
+      story: "The guide gives you instructions for rainforest emergencies. Read the hint in brackets and choose the right word!",
+      items: [
+        { prompt: "You ___ stay near the river now. (an order — very important!)",
+          options: ["must", "should", "can", "need to"], answer: "must", explain: "must = a strong order." },
+        { prompt: "Ravi ___ keep his leg clean. (a good idea)",
+          options: ["should", "mustn't", "can't", "don't have to"], answer: "should", explain: "should = good advice." },
+        { prompt: "We ___ find the camp before dark. (it is necessary)",
+          options: ["need to", "mustn't", "can't", "shouldn't"], answer: "need to", explain: "need to = necessity." },
+        { prompt: "You ___ touch the big snakes. It is dangerous! (never do this)",
+          options: ["mustn't", "don't have to", "should", "need to"], answer: "mustn't", explain: "mustn't = it is forbidden." },
+        { prompt: "You ___ pay for the jungle guide here. It is free! (not necessary)",
+          options: ["don't have to", "mustn't", "can't", "shouldn't"], answer: "don't have to", explain: "don't have to = not necessary." },
+        { prompt: "In the rainforest, you ___ wear boots every day. (good advice in general)",
+          options: ["should", "must", "can't", "mustn't"], answer: "should", explain: "should = general advice." },
+      ],
+    },
+    {
+      name: "Make a Plan", emoji: "🗣️", type: "quiz", reward: "R",
+      objective: "Asking for and responding to suggestions",
+      story: "While you wait for the motorboat, another explorer, Leo, arrives to help. Choose the best reply in each conversation!",
+      items: [
+        { prompt: "Leo: “Why don't we put the tent near the river?” — You:",
+          options: ["Good idea! The water is close.", "No, thank you. I'm fine.", "Sorry, I have a headache.", "It's two kilometres away."],
+          answer: "Good idea! The water is close.", explain: "Good idea! = a positive answer to a suggestion." },
+        { prompt: "You want Leo's suggestion. What do you say?",
+          options: ["What should we do now?", "You must do it now.", "I called yesterday.", "How far is the camp?"],
+          answer: "What should we do now?", explain: "What should we do? = asking for a suggestion." },
+        { prompt: "Leo: “Let's build a big fire signal.” — You:",
+          options: ["OK, I'll collect the wood.", "Yes, it's very far away.", "My arm hurts.", "You shouldn't call."],
+          answer: "OK, I'll collect the wood.", explain: "OK, I'll… = accepting a suggestion." },
+        { prompt: "You want to suggest an idea. What do you say?",
+          options: ["How about waiting on the big rock?", "You must wait here!", "I waited here yesterday.", "Is the camp far?"],
+          answer: "How about waiting on the big rock?", explain: "How about…? = making a suggestion." },
+        { prompt: "Leo: “We could follow the monkeys to the camp.” — You:",
+          options: ["I'd rather not — it's getting dark.", "No! Never! Sit down!", "The camp is two kilometres away.", "I can't follow monkeys."],
+          answer: "I'd rather not — it's getting dark.", explain: "I'd rather not = a polite 'no'." },
+      ],
+    },
+    {
+      name: "Say That Again", emoji: "🔊", type: "quiz", reward: "E",
+      objective: "Listening and requesting repetition",
+      story: "The rescue motorboat driver is talking to you on the radio. Listen carefully — you can press the button to hear each message again.",
+      items: [
+        { speak: "The motorboat is arriving in fifteen minutes.", prompt: "When is the motorboat arriving?",
+          options: ["In fifteen minutes.", "In two minutes.", "Tomorrow morning.", "After the rain."],
+          answer: "In fifteen minutes." },
+        { speak: "Please wait near the tallest tree. It is easy to see from the river.", prompt: "Where must you wait?",
+          options: ["Near the tallest tree.", "Near the tents.", "In the village.", "At the lodge."],
+          answer: "Near the tallest tree." },
+        { speak: "Ravi needs dry clothes and clean water.", prompt: "What does Ravi need?",
+          options: ["Dry clothes and clean water.", "A new map and compass.", "Food from the café.", "A taxi to the camp."],
+          answer: "Dry clothes and clean water." },
+        { speak: "Hello, this is River Base. Can you hear me? Over.", prompt: "The driver asks if you can hear. What do you say?",
+          options: ["Yes, I can hear you. Over.", "No, thank you.", "My name is Ravi.", "It is very far away."],
+          answer: "Yes, I can hear you. Over.", explain: "On the radio, we say 'Over' at the end." },
+        { speak: "River Base to canoe team: please confirm your position at the north bank, over.", prompt: "The driver speaks very fast and you don't understand. What do you say?",
+          options: ["Sorry, could you say that again, please?", "You must repeat that now!", "I say it again, don't worry.", "Can you write that for me?"],
+          answer: "Sorry, could you say that again, please?", explain: "Could you say that again, please? = a polite request for repetition." },
+      ],
+    },
+    {
+      name: "The Rescue Code", emoji: "🛶", type: "code",
+      objective: "The rescue!",
+      story: "The motorboat is coming around the bend! To open the door and radio the team, enter the secret code word. Tap the seven letters in the correct order — look at the tray at the top!",
+    },
+  ],
+},
+{
+  name: "The Arctic Station", emoji: "❄️", group: 4,
+  intro: "You and your friend Nina are driving a snowmobile across the Arctic ice. The wind is strong, the sky is white — and something happens near the research station!",
+  codeWord: "GLACIER",
+  codeHint: "the code is a giant river of ice in the mountains.",
+  endTitle: "🏆 Nina is safe!",
+  endText: "The rescue snowmobile takes Nina to the station doctor. One week later, she is well again — and you are the hero of the ice! 🎉",
+  rooms: [
+    {
+      name: "Pack Your Bag", emoji: "🎒", type: "sort", reward: "G",
+      objective: "Travel, adventure activities and packing essentials",
+      story: "Tomorrow you and Nina drive to the research station. Pack your backpack — take the things you need and leave the rest at home!",
+      items: [
+        { text: "warm coat",    emoji: "🧥", take: true },
+        { text: "snow boots",   emoji: "🥾", take: true },
+        { text: "warm gloves",  emoji: "🧤", take: true },
+        { text: "first-aid kit", emoji: "🩹", take: true },
+        { text: "map",           emoji: "🗺️", take: true },
+        { text: "torch",         emoji: "🔦", take: true },
+        { text: "swimsuit",      emoji: "🩱", take: false },
+        { text: "flip-flops",    emoji: "🩴", take: false },
+        { text: "beach ball",    emoji: "🏐", take: false },
+        { text: "guitar",        emoji: "🎸", take: false },
+        { text: "television",    emoji: "📺", take: false },
+        { text: "sun hat",       emoji: "👒", take: false },
+      ],
+    },
+    {
+      name: "Finding the Way", emoji: "🧭", type: "quiz", reward: "L",
+      objective: "Distances and specific locations",
+      story: "Day two. You and Nina are riding across the ice. Follow the station's flags to the research station — read them carefully!",
+      items: [
+        { prompt: "The research station is five kilometres ___.", options: ["away", "far", "long", "much"], answer: "away",
+          explain: "We say: five kilometres away." },
+        { prompt: "The radio tower is ___ the station and the ice cave.", options: ["between", "far", "next", "away"], answer: "between",
+          explain: "One thing between two other things." },
+        { prompt: "— How ___ is the ice cave? — About two kilometres.", options: ["far", "many", "much", "old"], answer: "far",
+          explain: "How far…? asks about distance." },
+        { prompt: "Go ___ and turn right at the red flag.", options: ["straight", "away", "far", "much"], answer: "straight",
+          explain: "Go straight = continue in the same direction." },
+        { prompt: "The weather station is ___ the top of the hill.", options: ["at", "far", "along", "away"], answer: "at",
+          explain: "At the top, at the bottom, at the end." },
+      ],
+    },
+    {
+      name: "What Happened?", emoji: "🚑", type: "fillbank", reward: "A",
+      objective: "Reporting events and actions — past tense",
+      story: "The ice was thinner than it looked. Tell the story of yesterday on the radio. Tap the correct past form for each verb — the selected blank is blue.",
+      text: [
+        "Yesterday, Nina and I ", { base: "drive", answer: "drove" }, " a snowmobile to the station. We ",
+        { base: "stop", answer: "stopped" }, " near an ice cave. Nina ", { base: "walk", answer: "walked" },
+        " onto the ice. Then the ice ", { base: "break", answer: "broke" }, " and she ",
+        { base: "fall", answer: "fell" }, " into a cold hole. Her arm ", { base: "hurt", answer: "hurt" },
+        " a lot. I ", { base: "call", answer: "called" }, " the arctic rescue team.",
+      ],
+    },
+    {
+      name: "What's Wrong?", emoji: "🤕", type: "match", reward: "C",
+      objective: "Health conditions and injuries",
+      story: "The station doctor is on the phone. She asks about Nina's condition. Match each picture with the correct problem — tap a picture, then tap its phrase.",
+      pairs: [
+        { emoji: "🥶", text: "She is very cold." },
+        { emoji: "🦴", text: "She can't move her arm." },
+        { emoji: "🤕", text: "Her head hurts." },
+        { emoji: "😵", text: "She feels dizzy." },
+        { emoji: "🩹", text: "There is a cut on her hand." },
+        { emoji: "🌡️", text: "She has a high temperature." },
+      ],
+    },
+    {
+      name: "Get Help", emoji: "💊", type: "quiz", reward: "I",
+      objective: "Advisability, necessity and obligation — should / must / need to",
+      story: "The doctor gives you instructions for arctic emergencies. Read the hint in brackets and choose the right word!",
+      items: [
+        { prompt: "You ___ take off her wet clothes now. (an order — very important!)",
+          options: ["must", "should", "can", "need to"], answer: "must", explain: "must = a strong order." },
+        { prompt: "Nina ___ drink something warm. (a good idea)",
+          options: ["should", "mustn't", "can't", "don't have to"], answer: "should", explain: "should = good advice." },
+        { prompt: "We ___ get to the station before dark. (it is necessary)",
+          options: ["need to", "mustn't", "can't", "shouldn't"], answer: "need to", explain: "need to = necessity." },
+        { prompt: "You ___ walk on the ice alone. It is dangerous! (never do this)",
+          options: ["mustn't", "don't have to", "should", "need to"], answer: "mustn't", explain: "mustn't = it is forbidden." },
+        { prompt: "You ___ pay the station doctor. The station helps everybody! It is free. (not necessary)",
+          options: ["don't have to", "mustn't", "can't", "shouldn't"], answer: "don't have to", explain: "don't have to = not necessary." },
+        { prompt: "In the Arctic, you ___ wear a hat and gloves. (good advice in general)",
+          options: ["should", "must", "can't", "mustn't"], answer: "should", explain: "should = general advice." },
+      ],
+    },
+    {
+      name: "Make a Plan", emoji: "🗣️", type: "quiz", reward: "E",
+      objective: "Asking for and responding to suggestions",
+      story: "While you wait for the rescue snowmobile, another explorer, Erik, arrives to help. Choose the best reply in each conversation!",
+      items: [
+        { prompt: "Erik: “Why don't we put up the tent here, out of the wind?” — You:",
+          options: ["Good idea! It's sheltered here.", "No, thank you. I'm fine.", "Sorry, I have a headache.", "It's five kilometres away."],
+          answer: "Good idea! It's sheltered here.", explain: "Good idea! = a positive answer to a suggestion." },
+        { prompt: "You want Erik's suggestion. What do you say?",
+          options: ["What should we do now?", "You must do it now.", "I called yesterday.", "How far is the station?"],
+          answer: "What should we do now?", explain: "What should we do? = asking for a suggestion." },
+        { prompt: "Erik: “Let's wrap Nina in the sleeping bag.” — You:",
+          options: ["OK, I'll get it now.", "Yes, it's very far away.", "My arm hurts.", "You shouldn't call."],
+          answer: "OK, I'll get it now.", explain: "OK, I'll… = accepting a suggestion." },
+        { prompt: "You want to suggest an idea. What do you say?",
+          options: ["How about waving the big orange flag?", "You must wave here!", "I waved here yesterday.", "Is the station far?"],
+          answer: "How about waving the big orange flag?", explain: "How about…? = making a suggestion." },
+        { prompt: "Erik: “We could skate across the ice to the station.” — You:",
+          options: ["I'd rather not — the ice is too thin.", "No! Never! Sit down!", "The station is five kilometres away.", "I can't skate."],
+          answer: "I'd rather not — the ice is too thin.", explain: "I'd rather not = a polite 'no'." },
+      ],
+    },
+    {
+      name: "Say That Again", emoji: "🔊", type: "quiz", reward: "R",
+      objective: "Listening and requesting repetition",
+      story: "The rescue snowmobile driver is talking to you on the radio. Listen carefully — you can press the button to hear each message again.",
+      items: [
+        { speak: "The snowmobile is arriving in thirty minutes.", prompt: "When is the snowmobile arriving?",
+          options: ["In thirty minutes.", "In two minutes.", "Tomorrow morning.", "After the rain."],
+          answer: "In thirty minutes." },
+        { speak: "Please wait near the red flag. It is easy to see on the ice.", prompt: "Where must you wait?",
+          options: ["Near the red flag.", "Near the tents.", "In the village.", "At the station."],
+          answer: "Near the red flag." },
+        { speak: "Nina needs warm clothes and hot tea.", prompt: "What does Nina need?",
+          options: ["Warm clothes and hot tea.", "A new map and compass.", "Food from the café.", "A taxi to the station."],
+          answer: "Warm clothes and hot tea." },
+        { speak: "Hello, this is Station Alpha. Can you hear me? Over.", prompt: "The driver asks if you can hear. What do you say?",
+          options: ["Yes, I can hear you. Over.", "No, thank you.", "My name is Nina.", "It is very far away."],
+          answer: "Yes, I can hear you. Over.", explain: "On the radio, we say 'Over' at the end." },
+        { speak: "Station Alpha to snow team: please confirm your position at the west ridge, over.", prompt: "The driver speaks very fast and you don't understand. What do you say?",
+          options: ["Sorry, could you say that again, please?", "You must repeat that now!", "I say it again, don't worry.", "Can you write that for me?"],
+          answer: "Sorry, could you say that again, please?", explain: "Could you say that again, please? = a polite request for repetition." },
+      ],
+    },
+    {
+      name: "The Rescue Code", emoji: "🛷", type: "code",
+      objective: "The rescue!",
+      story: "The rescue snowmobile is coming over the ice! To open the door and radio the team, enter the secret code word. Tap the seven letters in the correct order — look at the tray at the top!",
+    },
+  ],
+},
+{
+  name: "The Island Storm", emoji: "⛵", group: 5,
+  intro: "You and your friend Tom are sailing to a small island. But a big storm hits your boat — and something happens on the beach!",
+  codeWord: "SURVIVE",
+  codeHint: "the code means “to stay alive” — like you on the island!",
+  endTitle: "🏆 Tom is safe!",
+  endText: "The coast guard boat takes Tom to the island clinic. One week later, he is well again — and you are the hero of the storm! 🎉",
+  rooms: [
+    {
+      name: "Pack Your Bag", emoji: "🎒", type: "sort", reward: "S",
+      objective: "Travel, adventure activities and packing essentials",
+      story: "Tomorrow you and Tom sail to the island. Pack your backpack — take the things you need and leave the rest at home!",
+      items: [
+        { text: "life jacket",  emoji: "🦺", take: true },
+        { text: "water bottle", emoji: "🚰", take: true },
+        { text: "first-aid kit", emoji: "🩹", take: true },
+        { text: "map",            emoji: "🗺️", take: true },
+        { text: "torch",          emoji: "🔦", take: true },
+        { text: "sunscreen",      emoji: "🧴", take: true },
+        { text: "sled",           emoji: "🛷", take: false },
+        { text: "ice skates",     emoji: "⛸️", take: false },
+        { text: "snowboard",      emoji: "🏂", take: false },
+        { text: "thick coat",     emoji: "🧥", take: false },
+        { text: "television",     emoji: "📺", take: false },
+        { text: "guitar",         emoji: "🎸", take: false },
+      ],
+    },
+    {
+      name: "Finding the Way", emoji: "🧭", type: "quiz", reward: "U",
+      objective: "Distances and specific locations",
+      story: "The storm is over. You and Tom are on the beach. Follow the signs to the old harbour — read them carefully!",
+      items: [
+        { prompt: "The old harbour is one kilometre ___.", options: ["away", "far", "long", "much"], answer: "away",
+          explain: "We say: one kilometre away." },
+        { prompt: "The lighthouse is ___ the beach and the rocks.", options: ["between", "far", "next", "away"], answer: "between",
+          explain: "One thing between two other things." },
+        { prompt: "— How ___ is the village? — About two kilometres.", options: ["far", "many", "much", "old"], answer: "far",
+          explain: "How far…? asks about distance." },
+        { prompt: "Go ___ and turn left at the lighthouse.", options: ["straight", "away", "far", "much"], answer: "straight",
+          explain: "Go straight = continue in the same direction." },
+        { prompt: "The signal fire is ___ the top of the hill.", options: ["at", "far", "along", "away"], answer: "at",
+          explain: "At the top, at the bottom, at the end." },
+      ],
+    },
+    {
+      name: "What Happened?", emoji: "🚑", type: "fillbank", reward: "R",
+      objective: "Reporting events and actions — past tense",
+      story: "What a storm! Tell the story of yesterday on the radio. Tap the correct past form for each verb — the selected blank is blue.",
+      text: [
+        "Yesterday, Tom and I ", { base: "sail", answer: "sailed" }, " to the island. The wind ",
+        { base: "blow", answer: "blew" }, " hard and big waves ", { base: "hit", answer: "hit" },
+        " our boat. We ", { base: "swim", answer: "swam" }, " to the beach, but Tom ",
+        { base: "cut", answer: "cut" }, " his foot on a rock. We ", { base: "find", answer: "found" },
+        " a cave and I ", { base: "light", answer: "lit" }, " a small fire.",
+      ],
+    },
+    {
+      name: "What's Wrong?", emoji: "🤕", type: "match", reward: "V",
+      objective: "Health conditions and injuries",
+      story: "The coast guard is on the phone. They ask about Tom's condition. Match each picture with the correct problem — tap a picture, then tap its phrase.",
+      pairs: [
+        { emoji: "🩹", text: "There is a cut on his foot." },
+        { emoji: "🥶", text: "He is very cold and wet." },
+        { emoji: "🤕", text: "His head hurts." },
+        { emoji: "😵", text: "He feels dizzy." },
+        { emoji: "🌡️", text: "He has a high temperature." },
+        { emoji: "🦶", text: "His ankle is twisted." },
+      ],
+    },
+    {
+      name: "Get Help", emoji: "💊", type: "quiz", reward: "I",
+      objective: "Advisability, necessity and obligation — should / must / need to",
+      story: "The coast guard gives you instructions for island emergencies. Read the hint in brackets and choose the right word!",
+      items: [
+        { prompt: "You ___ get out of the wind now. (an order — very important!)",
+          options: ["must", "should", "can", "need to"], answer: "must", explain: "must = a strong order." },
+        { prompt: "Tom ___ take off his wet clothes. (a good idea)",
+          options: ["should", "mustn't", "can't", "don't have to"], answer: "should", explain: "should = good advice." },
+        { prompt: "We ___ find water before dark. (it is necessary)",
+          options: ["need to", "mustn't", "can't", "shouldn't"], answer: "need to", explain: "need to = necessity." },
+        { prompt: "You ___ swim to the next island. It is dangerous! (never do this)",
+          options: ["mustn't", "don't have to", "should", "need to"], answer: "mustn't", explain: "mustn't = it is forbidden." },
+        { prompt: "You ___ pay the coast guard. They help everybody! It is free. (not necessary)",
+          options: ["don't have to", "mustn't", "can't", "shouldn't"], answer: "don't have to", explain: "don't have to = not necessary." },
+        { prompt: "At sea, you ___ wear a life jacket all the time. (good advice in general)",
+          options: ["should", "must", "can't", "mustn't"], answer: "should", explain: "should = general advice." },
+      ],
+    },
+    {
+      name: "Make a Plan", emoji: "🗣️", type: "quiz", reward: "V",
+      objective: "Asking for and responding to suggestions",
+      story: "While you wait for the coast guard boat, a fisherman, Priya, arrives to help. Choose the best reply in each conversation!",
+      items: [
+        { prompt: "Priya: “Why don't we move Tom into the cave?” — You:",
+          options: ["Good idea! It's dry inside.", "No, thank you. I'm fine.", "Sorry, I have a headache.", "It's one kilometre away."],
+          answer: "Good idea! It's dry inside.", explain: "Good idea! = a positive answer to a suggestion." },
+        { prompt: "You want Priya's suggestion. What do you say?",
+          options: ["What should we do now?", "You must do it now.", "I called yesterday.", "How far is the harbour?"],
+          answer: "What should we do now?", explain: "What should we do? = asking for a suggestion." },
+        { prompt: "Priya: “Let's make the fire bigger.” — You:",
+          options: ["OK, I'll find more wood.", "Yes, it's very far away.", "My arm hurts.", "You shouldn't call."],
+          answer: "OK, I'll find more wood.", explain: "OK, I'll… = accepting a suggestion." },
+        { prompt: "You want to suggest an idea. What do you say?",
+          options: ["How about writing HELP on the sand?", "You must write here!", "I wrote here yesterday.", "Is the harbour far?"],
+          answer: "How about writing HELP on the sand?", explain: "How about…? = making a suggestion." },
+        { prompt: "Priya: “We could sail to the next island in my boat.” — You:",
+          options: ["I'd rather not — the sea is too rough.", "No! Never! Sit down!", "The next island is far away.", "I can't sail."],
+          answer: "I'd rather not — the sea is too rough.", explain: "I'd rather not = a polite 'no'." },
+      ],
+    },
+    {
+      name: "Say That Again", emoji: "🔊", type: "quiz", reward: "E",
+      objective: "Listening and requesting repetition",
+      story: "The coast guard boat is talking to you on the radio. Listen carefully — you can press the button to hear each message again.",
+      items: [
+        { speak: "The coast guard boat is arriving in twelve minutes.", prompt: "When is the boat arriving?",
+          options: ["In twelve minutes.", "In two minutes.", "Tomorrow morning.", "After the storm."],
+          answer: "In twelve minutes." },
+        { speak: "Please wait near the lighthouse. It is easy to see from the sea.", prompt: "Where must you wait?",
+          options: ["Near the lighthouse.", "Near the tents.", "In the village.", "At the harbour."],
+          answer: "Near the lighthouse." },
+        { speak: "Tom needs dry clothes and warm soup.", prompt: "What does Tom need?",
+          options: ["Dry clothes and warm soup.", "A new map and compass.", "Food from the café.", "A taxi to the harbour."],
+          answer: "Dry clothes and warm soup." },
+        { speak: "Hello, this is Coast Guard One. Can you hear me? Over.", prompt: "The skipper asks if you can hear. What do you say?",
+          options: ["Yes, I can hear you. Over.", "No, thank you.", "My name is Tom.", "It is very far away."],
+          answer: "Yes, I can hear you. Over.", explain: "On the radio, we say 'Over' at the end." },
+        { speak: "Coast Guard One to beach team: please confirm your position at the north bay, over.", prompt: "The skipper speaks very fast and you don't understand. What do you say?",
+          options: ["Sorry, could you say that again, please?", "You must repeat that now!", "I say it again, don't worry.", "Can you write that for me?"],
+          answer: "Sorry, could you say that again, please?", explain: "Could you say that again, please? = a polite request for repetition." },
+      ],
+    },
+    {
+      name: "The Rescue Code", emoji: "🛥️", type: "code",
+      objective: "The rescue!",
+      story: "The coast guard boat is near the beach! To open the door and radio the team, enter the secret code word. Tap the seven letters in the correct order — look at the tray at the top!",
+    },
+  ],
+},
+{
+  name: "The Lost City Trek", emoji: "🏛️", group: 6,
+  intro: "You and your friend Zara are trekking through the jungle to find a lost city. The path is old, the trees are tall — and something happens on the stone steps!",
+  codeWord: "TEMPLES",
+  codeHint: "the code is the name of the big old buildings of the lost city.",
+  endTitle: "🏆 Zara is safe!",
+  endText: "The rangers' jeep takes Zara to the jungle clinic. One week later, she is well again — and you are the hero of the lost city! 🎉",
+  rooms: [
+    {
+      name: "Pack Your Bag", emoji: "🎒", type: "sort", reward: "T",
+      objective: "Travel, adventure activities and packing essentials",
+      story: "Tomorrow you and Zara start the trek to the lost city. Pack your backpack — take the things you need and leave the rest at home!",
+      items: [
+        { text: "hiking boots",  emoji: "🥾", take: true },
+        { text: "water bottle",  emoji: "🚰", take: true },
+        { text: "first-aid kit", emoji: "🩹", take: true },
+        { text: "map",            emoji: "🗺️", take: true },
+        { text: "compass",        emoji: "🧭", take: true },
+        { text: "rope",           emoji: "🪢", take: true },
+        { text: "heavy books",    emoji: "📚", take: false },
+        { text: "television",     emoji: "📺", take: false },
+        { text: "guitar",         emoji: "🎸", take: false },
+        { text: "high heels",     emoji: "👠", take: false },
+        { text: "pillow",         emoji: "🛏️", take: false },
+        { text: "skateboard",     emoji: "🛹", take: false },
+      ],
+    },
+    {
+      name: "Finding the Way", emoji: "🧭", type: "quiz", reward: "E",
+      objective: "Distances and specific locations",
+      story: "Day two. You and Zara are on the old stone path. Follow the marks to the forest camp — read them carefully!",
+      items: [
+        { prompt: "The forest camp is six kilometres ___.", options: ["away", "far", "long", "much"], answer: "away",
+          explain: "We say: six kilometres away." },
+        { prompt: "The old gate is ___ the river and the stone stairs.", options: ["between", "far", "next", "away"], answer: "between",
+          explain: "One thing between two other things." },
+        { prompt: "— How ___ is the lost city? — About one kilometre.", options: ["far", "many", "much", "old"], answer: "far",
+          explain: "How far…? asks about distance." },
+        { prompt: "Go ___ and turn right at the stone gate.", options: ["straight", "away", "far", "much"], answer: "straight",
+          explain: "Go straight = continue in the same direction." },
+        { prompt: "The watchtower is ___ the top of the hill.", options: ["at", "far", "along", "away"], answer: "at",
+          explain: "At the top, at the bottom, at the end." },
+      ],
+    },
+    {
+      name: "What Happened?", emoji: "🚑", type: "fillbank", reward: "M",
+      objective: "Reporting events and actions — past tense",
+      story: "The stone steps were wet and slippery. Tell the story of yesterday on the radio. Tap the correct past form for each verb — the selected blank is blue.",
+      text: [
+        "Yesterday, Zara and I ", { base: "leave", answer: "left" }, " the camp early. We ",
+        { base: "walk", answer: "walked" }, " along the old path. Zara ", { base: "trip", answer: "tripped" },
+        " on a tree root and ", { base: "fall", answer: "fell" }, " down. She ",
+        { base: "hold", answer: "held" }, " her ankle and ", { base: "sit", answer: "sat" },
+        " on a stone. I ", { base: "call", answer: "called" }, " the park rangers.",
+      ],
+    },
+    {
+      name: "What's Wrong?", emoji: "🤕", type: "match", reward: "P",
+      objective: "Health conditions and injuries",
+      story: "The park rangers are on the phone. They ask about Zara's condition. Match each picture with the correct problem — tap a picture, then tap its phrase.",
+      pairs: [
+        { emoji: "🦶", text: "Her ankle is twisted." },
+        { emoji: "🤕", text: "Her head hurts." },
+        { emoji: "🩹", text: "There is a cut on her knee." },
+        { emoji: "😵", text: "She feels dizzy." },
+        { emoji: "🌡️", text: "She has a high temperature." },
+        { emoji: "🤢", text: "She feels sick — she needs to rest." },
+      ],
+    },
+    {
+      name: "Get Help", emoji: "💊", type: "quiz", reward: "L",
+      objective: "Advisability, necessity and obligation — should / must / need to",
+      story: "The head ranger gives you instructions for jungle emergencies. Read the hint in brackets and choose the right word!",
+      items: [
+        { prompt: "You ___ stay on the path now. (an order — very important!)",
+          options: ["must", "should", "can", "need to"], answer: "must", explain: "must = a strong order." },
+        { prompt: "Zara ___ keep her leg up. (a good idea)",
+          options: ["should", "mustn't", "can't", "don't have to"], answer: "should", explain: "should = good advice." },
+        { prompt: "We ___ reach the camp before dark. (it is necessary)",
+          options: ["need to", "mustn't", "can't", "shouldn't"], answer: "need to", explain: "need to = necessity." },
+        { prompt: "You ___ drink the river water. It is dangerous! (never do this)",
+          options: ["mustn't", "don't have to", "should", "need to"], answer: "mustn't", explain: "mustn't = it is forbidden." },
+        { prompt: "You ___ pay the park rangers. The park helps everybody! It is free. (not necessary)",
+          options: ["don't have to", "mustn't", "can't", "shouldn't"], answer: "don't have to", explain: "don't have to = not necessary." },
+        { prompt: "On a jungle trek, you ___ look at your map often. (good advice in general)",
+          options: ["should", "must", "can't", "mustn't"], answer: "should", explain: "should = general advice." },
+      ],
+    },
+    {
+      name: "Make a Plan", emoji: "🗣️", type: "quiz", reward: "E",
+      objective: "Asking for and responding to suggestions",
+      story: "While you wait for the rangers, another trekker, Ben, arrives to help. Choose the best reply in each conversation!",
+      items: [
+        { prompt: "Ben: “Why don't we rest under the big tree?” — You:",
+          options: ["Good idea! There is shade there.", "No, thank you. I'm fine.", "Sorry, I have a headache.", "It's six kilometres away."],
+          answer: "Good idea! There is shade there.", explain: "Good idea! = a positive answer to a suggestion." },
+        { prompt: "You want Ben's suggestion. What do you say?",
+          options: ["What should we do now?", "You must do it now.", "I called yesterday.", "How far is the camp?"],
+          answer: "What should we do now?", explain: "What should we do? = asking for a suggestion." },
+        { prompt: "Ben: “Let's carry Zara to the river.” — You:",
+          options: ["OK, I'll help you carry her.", "Yes, it's very far away.", "My arm hurts.", "You shouldn't call."],
+          answer: "OK, I'll help you carry her.", explain: "OK, I'll… = accepting a suggestion." },
+        { prompt: "You want to suggest an idea. What do you say?",
+          options: ["How about making a stretcher from branches?", "You must make it here!", "I made one yesterday.", "Is the camp far?"],
+          answer: "How about making a stretcher from branches?", explain: "How about…? = making a suggestion." },
+        { prompt: "Ben: “We could take the short path through the rocks.” — You:",
+          options: ["I'd rather not — it's too steep.", "No! Never! Sit down!", "The path is one kilometre away.", "I can't take the path."],
+          answer: "I'd rather not — it's too steep.", explain: "I'd rather not = a polite 'no'." },
+      ],
+    },
+    {
+      name: "Say That Again", emoji: "🔊", type: "quiz", reward: "S",
+      objective: "Listening and requesting repetition",
+      story: "The rangers' jeep driver is talking to you on the radio. Listen carefully — you can press the button to hear each message again.",
+      items: [
+        { speak: "The jeep is arriving in twenty-five minutes.", prompt: "When is the jeep arriving?",
+          options: ["In twenty-five minutes.", "In two minutes.", "Tomorrow morning.", "After the rain."],
+          answer: "In twenty-five minutes." },
+        { speak: "Please wait near the stone gate. It is easy to see from the track.", prompt: "Where must you wait?",
+          options: ["Near the stone gate.", "Near the tents.", "In the village.", "At the forest camp."],
+          answer: "Near the stone gate." },
+        { speak: "Zara needs cool water and a bandage.", prompt: "What does Zara need?",
+          options: ["Cool water and a bandage.", "A new map and compass.", "Food from the café.", "A taxi to the camp."],
+          answer: "Cool water and a bandage." },
+        { speak: "Hello, this is Ranger Post. Can you hear me? Over.", prompt: "The ranger asks if you can hear. What do you say?",
+          options: ["Yes, I can hear you. Over.", "No, thank you.", "My name is Zara.", "It is very far away."],
+          answer: "Yes, I can hear you. Over.", explain: "On the radio, we say 'Over' at the end." },
+        { speak: "Ranger Post to trek team: please confirm your position at the south stairs, over.", prompt: "The ranger speaks very fast and you don't understand. What do you say?",
+          options: ["Sorry, could you say that again, please?", "You must repeat that now!", "I say it again, don't worry.", "Can you write that for me?"],
+          answer: "Sorry, could you say that again, please?", explain: "Could you say that again, please? = a polite request for repetition." },
+      ],
+    },
+    {
+      name: "The Rescue Code", emoji: "🚙", type: "code",
+      objective: "The rescue!",
+      story: "The rangers' jeep is on the old track! To open the door and radio the team, enter the secret code word. Tap the seven letters in the correct order — look at the tray at the top!",
+    },
+  ],
+},
+{
+  name: "The River Rapids", emoji: "🛶", group: 7,
+  intro: "You and your friend Diego are rafting down a fast river. The water is wild, the rocks are sharp — and something happens at the big rapid!",
+  codeWord: "CURRENT",
+  codeHint: "the code is the name of the fast water that carries the raft.",
+  endTitle: "🏆 Diego is safe!",
+  endText: "The rescue kayak team takes Diego to the river base. One week later, he is well again — and you are the hero of the rapids! 🎉",
+  rooms: [
+    {
+      name: "Pack Your Bag", emoji: "🎒", type: "sort", reward: "C",
+      objective: "Travel, adventure activities and packing essentials",
+      story: "Tomorrow you and Diego go rafting on the wild river. Pack your dry bag — take the things you need and leave the rest at home!",
+      items: [
+        { text: "life jacket",  emoji: "🦺", take: true },
+        { text: "helmet",       emoji: "⛑️", take: true },
+        { text: "water bottle", emoji: "🚰", take: true },
+        { text: "first-aid kit", emoji: "🩹", take: true },
+        { text: "map",            emoji: "🗺️", take: true },
+        { text: "whistle",        emoji: "📣", take: true },
+        { text: "television",     emoji: "📺", take: false },
+        { text: "guitar",         emoji: "🎸", take: false },
+        { text: "pillow",         emoji: "🛏️", take: false },
+        { text: "heavy books",    emoji: "📚", take: false },
+        { text: "high heels",     emoji: "👠", take: false },
+        { text: "teddy bear",     emoji: "🧸", take: false },
+      ],
+    },
+    {
+      name: "Finding the Way", emoji: "🧭", type: "quiz", reward: "U",
+      objective: "Distances and specific locations",
+      story: "Day two. You and Diego are back on the river. Follow the signs to the rafting base — read them carefully!",
+      items: [
+        { prompt: "The rafting base is seven kilometres ___.", options: ["away", "far", "long", "much"], answer: "away",
+          explain: "We say: seven kilometres away." },
+        { prompt: "The first camp is ___ the bridge and the canyon.", options: ["between", "far", "next", "away"], answer: "between",
+          explain: "One thing between two other things." },
+        { prompt: "— How ___ is the big rapid? — About three kilometres.", options: ["far", "many", "much", "old"], answer: "far",
+          explain: "How far…? asks about distance." },
+        { prompt: "Go ___ and turn left at the wooden bridge.", options: ["straight", "away", "far", "much"], answer: "straight",
+          explain: "Go straight = continue in the same direction." },
+        { prompt: "The rescue point is ___ the bottom of the canyon.", options: ["at", "far", "along", "away"], answer: "at",
+          explain: "At the top, at the bottom, at the end." },
+      ],
+    },
+    {
+      name: "What Happened?", emoji: "🚑", type: "fillbank", reward: "R",
+      objective: "Reporting events and actions — past tense",
+      story: "The raft hit a rock at the big rapid. Tell the story of yesterday on the radio. Tap the correct past form for each verb — the selected blank is blue.",
+      text: [
+        "Yesterday, Diego and I ", { base: "go", answer: "went" }, " down the wild river. Our raft ",
+        { base: "hit", answer: "hit" }, " a big rock at the rapid. Diego ", { base: "fall", answer: "fell" },
+        " into the water. I ", { base: "throw", answer: "threw" }, " him the rope and he ",
+        { base: "swim", answer: "swam" }, " to me. His shoulder ", { base: "hurt", answer: "hurt" },
+        " a lot, so we ", { base: "stop", answer: "stopped" }, " at the side of the river.",
+      ],
+    },
+    {
+      name: "What's Wrong?", emoji: "🤕", type: "match", reward: "R",
+      objective: "Health conditions and injuries",
+      story: "The river rescue team is on the phone. They ask about Diego's condition. Match each picture with the correct problem — tap a picture, then tap its phrase.",
+      pairs: [
+        { emoji: "🦴", text: "His shoulder hurts — he can't lift his arm." },
+        { emoji: "🥶", text: "He is very cold from the water." },
+        { emoji: "🤕", text: "His head hurts." },
+        { emoji: "😵", text: "He feels dizzy." },
+        { emoji: "🩹", text: "There is a cut on his hand." },
+        { emoji: "🌡️", text: "He has a high temperature." },
+      ],
+    },
+    {
+      name: "Get Help", emoji: "💊", type: "quiz", reward: "E",
+      objective: "Advisability, necessity and obligation — should / must / need to",
+      story: "The river rescue team gives you instructions for rafting emergencies. Read the hint in brackets and choose the right word!",
+      items: [
+        { prompt: "You ___ get Diego out of the water now. (an order — very important!)",
+          options: ["must", "should", "can", "need to"], answer: "must", explain: "must = a strong order." },
+        { prompt: "Diego ___ rest his shoulder. (a good idea)",
+          options: ["should", "mustn't", "can't", "don't have to"], answer: "should", explain: "should = good advice." },
+        { prompt: "We ___ find the camp before the next rapid. (it is necessary)",
+          options: ["need to", "mustn't", "can't", "shouldn't"], answer: "need to", explain: "need to = necessity." },
+        { prompt: "You ___ go back on the river today. It is dangerous! (never do this)",
+          options: ["mustn't", "don't have to", "should", "need to"], answer: "mustn't", explain: "mustn't = it is forbidden." },
+        { prompt: "You ___ pay the river rescue team. They help everybody! It is free. (not necessary)",
+          options: ["don't have to", "mustn't", "can't", "shouldn't"], answer: "don't have to", explain: "don't have to = not necessary." },
+        { prompt: "On wild water, you ___ wear a helmet and a life jacket. (good advice in general)",
+          options: ["should", "must", "can't", "mustn't"], answer: "should", explain: "should = general advice." },
+      ],
+    },
+    {
+      name: "Make a Plan", emoji: "🗣️", type: "quiz", reward: "N",
+      objective: "Asking for and responding to suggestions",
+      story: "While you wait for the rescue kayak, another rafter, Sofia, arrives to help. Choose the best reply in each conversation!",
+      items: [
+        { prompt: "Sofia: “Why don't we pull the raft onto the rocks?” — You:",
+          options: ["Good idea! We can sit there.", "No, thank you. I'm fine.", "Sorry, I have a headache.", "It's seven kilometres away."],
+          answer: "Good idea! We can sit there.", explain: "Good idea! = a positive answer to a suggestion." },
+        { prompt: "You want Sofia's suggestion. What do you say?",
+          options: ["What should we do now?", "You must do it now.", "I called yesterday.", "How far is the base?"],
+          answer: "What should we do now?", explain: "What should we do? = asking for a suggestion." },
+        { prompt: "Sofia: “Let's wave the paddles for the helicopter.” — You:",
+          options: ["OK, I'll wave mine.", "Yes, it's very far away.", "My arm hurts.", "You shouldn't call."],
+          answer: "OK, I'll wave mine.", explain: "OK, I'll… = accepting a suggestion." },
+        { prompt: "You want to suggest an idea. What do you say?",
+          options: ["How about making a big SOS on the rocks?", "You must make it here!", "I made one yesterday.", "Is the base far?"],
+          answer: "How about making a big SOS on the rocks?", explain: "How about…? = making a suggestion." },
+        { prompt: "Sofia: “We could paddle to the base in my kayak.” — You:",
+          options: ["I'd rather not — the water is too fast.", "No! Never! Sit down!", "The base is seven kilometres away.", "I can't paddle."],
+          answer: "I'd rather not — the water is too fast.", explain: "I'd rather not = a polite 'no'." },
+      ],
+    },
+    {
+      name: "Say That Again", emoji: "🔊", type: "quiz", reward: "T",
+      objective: "Listening and requesting repetition",
+      story: "The rescue kayak team is talking to you on the radio. Listen carefully — you can press the button to hear each message again.",
+      items: [
+        { speak: "The kayak is arriving in five minutes.", prompt: "When is the kayak arriving?",
+          options: ["In five minutes.", "In two minutes.", "Tomorrow morning.", "After the rain."],
+          answer: "In five minutes." },
+        { speak: "Please wait near the orange canoe. It is easy to see from the water.", prompt: "Where must you wait?",
+          options: ["Near the orange canoe.", "Near the tents.", "In the village.", "At the rafting base."],
+          answer: "Near the orange canoe." },
+        { speak: "Diego needs a warm jacket and some hot tea.", prompt: "What does Diego need?",
+          options: ["A warm jacket and some hot tea.", "A new map and compass.", "Food from the café.", "A taxi to the base."],
+          answer: "A warm jacket and some hot tea." },
+        { speak: "Hello, this is Rapid Team. Can you hear me? Over.", prompt: "The rescuer asks if you can hear. What do you say?",
+          options: ["Yes, I can hear you. Over.", "No, thank you.", "My name is Diego.", "It is very far away."],
+          answer: "Yes, I can hear you. Over.", explain: "On the radio, we say 'Over' at the end." },
+        { speak: "Rapid Team to river team: please confirm your position at the second rapid, over.", prompt: "The rescuer speaks very fast and you don't understand. What do you say?",
+          options: ["Sorry, could you say that again, please?", "You must repeat that now!", "I say it again, don't worry.", "Can you write that for me?"],
+          answer: "Sorry, could you say that again, please?", explain: "Could you say that again, please? = a polite request for repetition." },
+      ],
+    },
+    {
+      name: "The Rescue Code", emoji: "🚤", type: "code",
+      objective: "The rescue!",
+      story: "The rescue kayak is coming up the river! To open the door and radio the team, enter the secret code word. Tap the seven letters in the correct order — look at the tray at the top!",
+    },
+  ],
+},
+{
+  name: "The Safari Rescue", emoji: "🐘", group: 8,
+  intro: "You and your friend Amara are on a photo safari in the national park. The grass is golden, the animals are amazing — and something happens near the waterhole!",
+  codeWord: "RANGERS",
+  codeHint: "the code is the name of the park team in green uniforms.",
+  endTitle: "🏆 Amara is safe!",
+  endText: "The rangers' jeep takes Amara to the park clinic. One week later, she is well again — and you are the hero of the savanna! 🎉",
+  rooms: [
+    {
+      name: "Pack Your Bag", emoji: "🎒", type: "sort", reward: "R",
+      objective: "Travel, adventure activities and packing essentials",
+      story: "Tomorrow you and Amara go on a photo safari. Pack your backpack — take the things you need and leave the rest at home!",
+      items: [
+        { text: "camera",        emoji: "📷", take: true },
+        { text: "sun hat",        emoji: "👒", take: true },
+        { text: "water bottle",   emoji: "🚰", take: true },
+        { text: "first-aid kit",  emoji: "🩹", take: true },
+        { text: "map",             emoji: "🗺️", take: true },
+        { text: "hiking boots",   emoji: "🥾", take: true },
+        { text: "swimming goggles", emoji: "🥽", take: false },
+        { text: "sled",            emoji: "🛷", take: false },
+        { text: "television",      emoji: "📺", take: false },
+        { text: "guitar",          emoji: "🎸", take: false },
+        { text: "ice skates",      emoji: "⛸️", take: false },
+        { text: "pillow",          emoji: "🛏️", take: false },
+      ],
+    },
+    {
+      name: "Finding the Way", emoji: "🧭", type: "quiz", reward: "A",
+      objective: "Distances and specific locations",
+      story: "Day two. You and Amara are on the jeep track. Follow the signs to the ranger post — read them carefully!",
+      items: [
+        { prompt: "The ranger post is eight kilometres ___.", options: ["away", "far", "long", "much"], answer: "away",
+          explain: "We say: eight kilometres away." },
+        { prompt: "The waterhole is ___ the tall grass and the baobab tree.", options: ["between", "far", "next", "away"], answer: "between",
+          explain: "One thing between two other things." },
+        { prompt: "— How ___ is the camp? — About four kilometres.", options: ["far", "many", "much", "old"], answer: "far",
+          explain: "How far…? asks about distance." },
+        { prompt: "Go ___ and turn left at the big baobab.", options: ["straight", "away", "far", "much"], answer: "straight",
+          explain: "Go straight = continue in the same direction." },
+        { prompt: "The lookout point is ___ the top of the hill.", options: ["at", "far", "along", "away"], answer: "at",
+          explain: "At the top, at the bottom, at the end." },
+      ],
+    },
+    {
+      name: "What Happened?", emoji: "🚑", type: "fillbank", reward: "N",
+      objective: "Reporting events and actions — past tense",
+      story: "Amara walked too long in the hot sun. Tell the story of yesterday on the radio. Tap the correct past form for each verb — the selected blank is blue.",
+      text: [
+        "Yesterday, Amara and I ", { base: "drive", answer: "drove" }, " into the park in a jeep. The jeep ",
+        { base: "stop", answer: "stopped" }, " in the mud, so Amara ", { base: "get", answer: "got" },
+        " out and walked in the sun. She ", { base: "forget", answer: "forgot" },
+        " her sun hat! After an hour she ", { base: "feel", answer: "felt" },
+        " dizzy. I ", { base: "bring", answer: "brought" }, " her water and ",
+        { base: "call", answer: "called" }, " the park rangers.",
+      ],
+    },
+    {
+      name: "What's Wrong?", emoji: "🤕", type: "match", reward: "G",
+      objective: "Health conditions and injuries",
+      story: "The park rangers are on the phone. They ask about Amara's condition. Match each picture with the correct problem — tap a picture, then tap its phrase.",
+      pairs: [
+        { emoji: "🥵", text: "She has heat exhaustion." },
+        { emoji: "🤕", text: "Her head hurts from the sun." },
+        { emoji: "😵", text: "She feels dizzy." },
+        { emoji: "🌡️", text: "She has a high temperature." },
+        { emoji: "🩹", text: "There is a cut on her knee." },
+        { emoji: "💧", text: "She is very thirsty." },
+      ],
+    },
+    {
+      name: "Get Help", emoji: "💊", type: "quiz", reward: "E",
+      objective: "Advisability, necessity and obligation — should / must / need to",
+      story: "The head ranger gives you instructions for savanna emergencies. Read the hint in brackets and choose the right word!",
+      items: [
+        { prompt: "You ___ move Amara into the shade now. (an order — very important!)",
+          options: ["must", "should", "can", "need to"], answer: "must", explain: "must = a strong order." },
+        { prompt: "Amara ___ sip water slowly. (a good idea)",
+          options: ["should", "mustn't", "can't", "don't have to"], answer: "should", explain: "should = good advice." },
+        { prompt: "We ___ find the jeep before dark. (it is necessary)",
+          options: ["need to", "mustn't", "can't", "shouldn't"], answer: "need to", explain: "need to = necessity." },
+        { prompt: "You ___ walk between the elephants. It is dangerous! (never do this)",
+          options: ["mustn't", "don't have to", "should", "need to"], answer: "mustn't", explain: "mustn't = it is forbidden." },
+        { prompt: "You ___ pay the park rangers. The park helps everybody! It is free. (not necessary)",
+          options: ["don't have to", "mustn't", "can't", "shouldn't"], answer: "don't have to", explain: "don't have to = not necessary." },
+        { prompt: "On safari, you ___ stay in your jeep near big animals. (good advice in general)",
+          options: ["should", "must", "can't", "mustn't"], answer: "should", explain: "should = general advice." },
+      ],
+    },
+    {
+      name: "Make a Plan", emoji: "🗣️", type: "quiz", reward: "R",
+      objective: "Asking for and responding to suggestions",
+      story: "While you wait for the rangers' jeep, another photographer, Kwame, arrives to help. Choose the best reply in each conversation!",
+      items: [
+        { prompt: "Kwame: “Why don't we put up the umbrella for shade?” — You:",
+          options: ["Good idea! The sun is very strong.", "No, thank you. I'm fine.", "Sorry, I have a headache.", "It's eight kilometres away."],
+          answer: "Good idea! The sun is very strong.", explain: "Good idea! = a positive answer to a suggestion." },
+        { prompt: "You want Kwame's suggestion. What do you say?",
+          options: ["What should we do now?", "You must do it now.", "I called yesterday.", "How far is the ranger post?"],
+          answer: "What should we do now?", explain: "What should we do? = asking for a suggestion." },
+        { prompt: "Kwame: “Let's fan her with the map.” — You:",
+          options: ["OK, I'll hold the map.", "Yes, it's very far away.", "My arm hurts.", "You shouldn't call."],
+          answer: "OK, I'll hold the map.", explain: "OK, I'll… = accepting a suggestion." },
+        { prompt: "You want to suggest an idea. What do you say?",
+          options: ["How about driving back to the camp?", "You must drive now!", "I drove there yesterday.", "Is the ranger post far?"],
+          answer: "How about driving back to the camp?", explain: "How about…? = making a suggestion." },
+        { prompt: "Kwame: “We could wait for the elephants to move first.” — You:",
+          options: ["I'd rather not — Amara needs help now.", "No! Never! Sit down!", "The elephants are far away.", "I can't wait."],
+          answer: "I'd rather not — Amara needs help now.", explain: "I'd rather not = a polite 'no'." },
+      ],
+    },
+    {
+      name: "Say That Again", emoji: "🔊", type: "quiz", reward: "S",
+      objective: "Listening and requesting repetition",
+      story: "The rangers' jeep driver is talking to you on the radio. Listen carefully — you can press the button to hear each message again.",
+      items: [
+        { speak: "The jeep is arriving in eight minutes.", prompt: "When is the jeep arriving?",
+          options: ["In eight minutes.", "In two minutes.", "Tomorrow morning.", "After the rain."],
+          answer: "In eight minutes." },
+        { speak: "Please wait near the big baobab. It is easy to see from the track.", prompt: "Where must you wait?",
+          options: ["Near the big baobab.", "Near the tents.", "In the village.", "At the ranger post."],
+          answer: "Near the big baobab." },
+        { speak: "Amara needs shade and cold water.", prompt: "What does Amara need?",
+          options: ["Shade and cold water.", "A new map and compass.", "Food from the café.", "A taxi to the camp."],
+          answer: "Shade and cold water." },
+        { speak: "Hello, this is Park Radio. Can you hear me? Over.", prompt: "The ranger asks if you can hear. What do you say?",
+          options: ["Yes, I can hear you. Over.", "No, thank you.", "My name is Amara.", "It is very far away."],
+          answer: "Yes, I can hear you. Over.", explain: "On the radio, we say 'Over' at the end." },
+        { speak: "Park Radio to safari team: please confirm your position at the west waterhole, over.", prompt: "The ranger speaks very fast and you don't understand. What do you say?",
+          options: ["Sorry, could you say that again, please?", "You must repeat that now!", "I say it again, don't worry.", "Can you write that for me?"],
+          answer: "Sorry, could you say that again, please?", explain: "Could you say that again, please? = a polite request for repetition." },
+      ],
+    },
+    {
+      name: "The Rescue Code", emoji: "🚙", type: "code",
+      objective: "The rescue!",
+      story: "The rangers' jeep is on the track! To open the door and radio the team, enter the secret code word. Tap the seven letters in the correct order — look at the tray at the top!",
+    },
+  ],
+},
 ];
 
 /* ============================================================
@@ -317,7 +1326,11 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const PRAISE = ["Well done!", "Nice!", "Correct!", "Great!", "Perfect!"];
 const TTS = ("speechSynthesis" in window);
 
-let state = null;
+const story = () => STORIES[state.storyIndex];
+const rooms = () => story().rooms;
+const roomNow = () => rooms()[state.roomIndex];
+
+let state = { storyIndex: 0 };
 let locked = true;
 
 /* ---- speech (optional, degrades silently) ---- */
@@ -350,7 +1363,7 @@ function speak(text) {
 
 /* ---- screens, feedback, review list ---- */
 function show(name) {
-  ["start", "room", "end"].forEach((s) => { $("screen-" + s).hidden = s !== name; });
+  ["lobby", "start", "room", "end"].forEach((s) => { $("screen-" + s).hidden = s !== name; });
 }
 function fb(msg, kind) {
   const f = $("feedback");
@@ -361,13 +1374,43 @@ function addReview(label, detail) {
   if (!state.review.some((r) => r.label === label)) state.review.push({ label, detail });
 }
 
+/* ---- lobby and story selection ---- */
+function backToLobby() {
+  document.title = CONFIG.title;
+  show("lobby");
+}
+function renderLobby() {
+  $("groups").innerHTML = STORIES.map((s, i) =>
+    '<button type="button" class="group-card" data-i="' + i + '">' +
+    '<span class="ge">' + s.emoji + '</span>' +
+    '<span class="gt">' + s.name + '</span>' +
+    '<span class="gg">Group ' + s.group + '</span>' +
+    "</button>").join("");
+  $("groups").querySelectorAll(".group-card").forEach((b) =>
+    b.addEventListener("click", () => selectStory(+b.dataset.i)));
+}
+function selectStory(i) {
+  state.storyIndex = i;
+  const s = STORIES[i];
+  document.title = s.name + " · Group " + s.group + " · English Game";
+  $("start-title").textContent = s.name;
+  $("start-sub").textContent = "An English escape room " + s.emoji;
+  $("start-intro").textContent = s.intro;
+  $("chip-level").textContent = "Level " + CONFIG.level;
+  $("chip-group").textContent = "Group " + s.group;
+  show("start");
+}
+
 /* ---- game flow ---- */
 function newGame() {
+  const storyIndex = state ? state.storyIndex : 0;
+  const word = STORIES[storyIndex].codeWord;
   state = {
+    storyIndex: storyIndex,
     roomIndex: 0,
     letters: [],
-    tray: Array(CONFIG.codeWord.length).fill(null),
-    traySlots: shuffle(CONFIG.codeWord.split("").map((_, i) => i)),
+    tray: Array(word.length).fill(null),
+    traySlots: shuffle(word.split("").map((_, i) => i)),
     mistakes: 0,
     review: [],
     room: null,
@@ -382,7 +1425,7 @@ function renderTray() {
 }
 
 function startRoom() {
-  const room = ROOMS[state.roomIndex];
+  const room = roomNow();
   state.room = { progress: 0, selected: 0, matched: 0, filled: 0, codeMiss: 0, hint: "", picked: null, done: {}, queue: null, blanks: null, chips: null, retry: [], attempts: new Map(), wrongPicks: new Map(), pass: 1, pendingRetry: false };
 
   if (room.type === "sort" || room.type === "quiz") state.room.queue = shuffle(room.items);
@@ -395,9 +1438,9 @@ function startRoom() {
     state.room.chips = shuffle(state.room.blanks.map((b) => b.answer));
     state.room.selected = 0;
   }
-  if (room.type === "code") state.room.queue = shuffle(CONFIG.codeWord.split(""));
+  if (room.type === "code") state.room.queue = shuffle(story().codeWord.split(""));
 
-  $("room-title").textContent = "Room " + (state.roomIndex + 1) + " of " + ROOMS.length + " · " + room.emoji + " " + room.name;
+  $("room-title").textContent = "Room " + (state.roomIndex + 1) + " of " + rooms().length + " · " + room.emoji + " " + room.name;
   $("room-obj").textContent = "📌 " + room.objective;
   $("room-story").textContent = room.story;
   $("room-done").hidden = true;
@@ -410,7 +1453,7 @@ function startRoom() {
 }
 
 function renderPuzzle() {
-  const room = ROOMS[state.roomIndex];
+  const room = roomNow();
   if (room.type === "sort") renderSort();
   else if (room.type === "quiz") renderQuiz();
   else if (room.type === "fillbank") renderFill();
@@ -420,7 +1463,7 @@ function renderPuzzle() {
 
 function advance() {
   setTimeout(() => {
-    const room = ROOMS[state.roomIndex];
+    const room = roomNow();
     state.room.progress++;
     if (state.room.progress < state.room.queue.length) {
       locked = false;
@@ -462,7 +1505,7 @@ function startRetryPass() {
 }
 
 function roomComplete() {
-  const room = ROOMS[state.roomIndex];
+  const room = roomNow();
   locked = true;
   let line;
   if (room.reward) {
@@ -470,20 +1513,20 @@ function roomComplete() {
     state.letters.push(room.reward);
     line = "✅ " + room.name + " complete! You found the letter <b>" + room.reward + "</b>!";
   } else {
-    line = "🚁 The door is open — Sam is rescued!";
+    line = "🚁 The door is open — your friend is rescued!";
   }
   $("puzzle").hidden = true;
   fb("");
   $("done-sub").textContent = "";
   $("done-line").innerHTML = line;
-  $("btn-next").textContent = state.roomIndex + 1 < ROOMS.length ? "Next room →" : "See your results 🏆";
+  $("btn-next").textContent = state.roomIndex + 1 < rooms().length ? "Next room →" : "See your results 🏆";
   $("room-done").hidden = false;
   renderTray();
 }
 
 /* ---- room: word sort ---- */
 function renderSort() {
-  const room = ROOMS[state.roomIndex];
+  const room = roomNow();
   const it = state.room.queue[state.room.progress];
   $("puzzle").innerHTML =
     '<div class="prompt"><span class="emoji">' + it.emoji + '</span>' +
@@ -504,23 +1547,23 @@ function onSort(e) {
   else {
     state.mistakes++;
     addReview(it.text, it.take ? "🎒 Take it on the trip" : "🏠 Leave it at home");
-    fb(it.take ? "You really need that on a mountain trip! 🎒" : "Hikers usually leave that at home! 🏠", "bad");
+    fb(it.take ? "You really need that on this trip! 🎒" : "Travellers usually leave that at home! 🏠", "bad");
   }
   advance();
 }
 
 /* ---- room: multiple-choice quiz (also used for listening) ---- */
 function renderQuiz() {
-  const room = ROOMS[state.roomIndex];
+  const room = roomNow();
   const q = state.room.queue[state.room.progress];
   const opts = shuffle(q.options);
+  const picks = state.room.wrongPicks.get(q) || [];
   let sayRow = "";
   if (q.speak) {
     sayRow = TTS
       ? '<div class="speak-row"><button type="button" class="btn-speak" id="btn-speak">🔊 Play the radio again</button></div>'
-      : '<p class="saytext">📻 The pilot says: “' + q.speak + "”</p>";
+      : '<p class="saytext">📻 The rescuer says: “' + q.speak + "”</p>";
   }
-  const picks = state.room.wrongPicks.get(q) || [];
   $("puzzle").innerHTML =
     '<p class="counter">' + (state.room.pass > 1 ? "Try again · " : "") + 'Question ' + (state.room.progress + 1) + " of " + state.room.queue.length + "</p>" +
     '<div class="prompt"><p class="meaning">' + q.prompt + "</p></div>" +
@@ -578,7 +1621,7 @@ function onQuiz(word, btn) {
 
 /* ---- room: fill-in-the-blank with word bank ---- */
 function renderFill() {
-  const room = ROOMS[state.roomIndex];
+  const room = roomNow();
   const filledCount = state.room.blanks.filter((b) => b.filled).length;
   const html = [];
   let bi = 0;
@@ -603,7 +1646,6 @@ function renderFill() {
 }
 function onChip(chip) {
   if (locked) return;
-  const room = ROOMS[state.roomIndex];
   const w = state.room.chips[+chip.dataset.i];
   const b = state.room.blanks[state.room.selected];
   if (!b || b.filled) return;
@@ -631,7 +1673,7 @@ function onChip(chip) {
 
 /* ---- room: matching pairs ---- */
 function renderMatch() {
-  const room = ROOMS[state.roomIndex];
+  const room = roomNow();
   const picked = state.room.picked;
   // highlight ONLY the tile the learner tapped (same key AND same column) —
   // never its matching twin on the other side
@@ -653,7 +1695,7 @@ function renderMatch() {
 }
 function onTile(t) {
   if (locked) return;
-  const room = ROOMS[state.roomIndex];
+  const room = roomNow();
   const k = +t.dataset.k;
   const side = t.classList.contains("emoji") ? "L" : "R";
   if (state.room.done[k]) return;
@@ -693,10 +1735,10 @@ function onTile(t) {
 
 /* ---- room: final code ---- */
 function renderCode() {
-  const word = CONFIG.codeWord;
+  const word = story().codeWord;
   $("puzzle").innerHTML =
-    '<div class="prompt"><span class="emoji">🚁</span>' +
-    '<p class="meaning">Enter the code word to call the rescue helicopter!</p></div>' +
+    '<div class="prompt"><span class="emoji">' + story().rooms[rooms().length - 1].emoji + '</span>' +
+    '<p class="meaning">Enter the code word to call the rescue team!</p></div>' +
     '<div class="slots">' +
     word.split("").map((ch, i) =>
       '<div class="slot ' + (i < state.room.filled ? "on" : "") + '">' + (i < state.room.filled ? word[i] : "") + "</div>").join("") +
@@ -714,21 +1756,21 @@ function onCodeChip(chip) {
   const i = +chip.dataset.i;
   const ch = state.room.queue[i];
   const pos = state.room.filled;
-  if (ch === CONFIG.codeWord[pos]) {
+  if (ch === story().codeWord[pos]) {
     locked = true;
     state.room.queue.splice(i, 1);
     state.room.filled++;
     fb(pick(PRAISE), "ok");
     setTimeout(() => {
       locked = false;
-      if (state.room.filled === CONFIG.codeWord.length) roomComplete();
+      if (state.room.filled === story().codeWord.length) roomComplete();
       else renderCode();
     }, CONFIG.delayMs);
   } else {
     state.mistakes++;
     state.room.codeMiss++;
     if (state.room.codeMiss >= 2 && !state.room.hint) {
-      state.room.hint = "💡 Hint: the helicopter will do this to Sam. The code is the past of “rescue”.";
+      state.room.hint = "💡 Hint: " + story().codeHint;
     }
     fb("Not this letter — look at the tray at the top! 💡", "bad");
     renderCode();
@@ -740,11 +1782,10 @@ function endGame() {
   const m = state.mistakes;
   const stars = m <= 2 ? 3 : m <= 5 ? 2 : m <= 9 ? 1 : 0;
   $("stars").textContent = "\u2605\u2605\u2605".slice(0, stars) + "\u2606\u2606\u2606".slice(0, 3 - stars);
-  $("end-title").textContent = "🏆 Sam is rescued!";
-  $("end-story").textContent =
-    "The helicopter flies Sam to the hospital. One week later, she is well again — and you are the hero of the mountains! 🎉";
+  $("end-title").textContent = story().endTitle;
+  $("end-story").textContent = story().endText;
   $("end-score").textContent =
-    "You finished " + ROOMS.length + " rooms with " + m + (m === 1 ? " mistake." : " mistakes.");
+    "You finished " + rooms().length + " rooms with " + m + (m === 1 ? " mistake." : " mistakes.");
 
   $("miss-box").hidden = state.review.length === 0;
   const list = $("end-misses");
@@ -763,10 +1804,7 @@ function endGame() {
 
 /* ---- init ---- */
 function init() {
-  document.title = CONFIG.title + " · English Game";
-  $("start-title").textContent = CONFIG.title;
-  $("chip-level").textContent = "Level " + CONFIG.level;
-  $("chip-rooms").textContent = ROOMS.length + " rooms · one letter each";
+  document.title = CONFIG.title;
   $("btn-start").addEventListener("click", newGame);
   $("btn-replay").addEventListener("click", newGame);
   $("btn-next").addEventListener("click", () => {
@@ -776,10 +1814,18 @@ function init() {
       return;
     }
     state.roomIndex++;
-    if (state.roomIndex < ROOMS.length) startRoom();
+    if (state.roomIndex < rooms().length) startRoom();
     else endGame();
   });
+  $("link-back-start").addEventListener("click", (e) => { e.preventDefault(); backToLobby(); });
+  $("link-back-end").addEventListener("click", (e) => { e.preventDefault(); backToLobby(); });
+  renderLobby();
   initVoice();
+  // direct link: .../#group-3 (or .../#3) starts that group immediately
+  const m = (location.hash || "").match(/(\d+)/);
+  const n = m ? +m[1] : 0;
+  if (n >= 1 && n <= STORIES.length) { selectStory(n - 1); newGame(); }
+  else show("lobby");
 }
 init();
 </script>

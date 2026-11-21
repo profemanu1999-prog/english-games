@@ -1,21 +1,41 @@
-# The Mountain Rescue 🚁
+# English Escape Rooms 🚁
 
-An English escape room for **A2–B1** learners: a single self-contained HTML
-file with no dependencies. Your friend Sam falls on a mountain trail — solve
-every room, collect the letters, and call the rescue helicopter.
+**Eight escape rooms for A2–B1 learners — one per class group.** Every group
+plays the same challenges and learning objectives through a *different travel
+story*: a single self-contained HTML file with no dependencies. A friend gets
+hurt on an adventure, and only English can save the day — solve every room,
+collect the letters, and enter the rescue code.
 
 ## Play
 
-Open `index.html` in any browser (double-click), or serve the folder:
+Open `index.html` in any browser, or visit the published site:
 
-```sh
-python3 -m http.server 8000   # or any static server
-```
+**https://profemanu1999-prog.github.io/english-games/**
+
+The start page is a **lobby** where each group picks their adventure.
+
+### Direct links for each group
+
+Share these so students land straight in their own escape room:
+
+| Group | Link suffix | Adventure | Friend | Code word |
+| ----- | ----------- | --------- | ------ | --------- |
+| 1 | `/#1` | 🏔️ The Mountain Rescue | Sam | RESCUED |
+| 2 | `/#2` | 🐪 The Desert Caravan | Omar | CARAVAN |
+| 3 | `/#3` | 🌴 The Amazon Expedition | Ravi | EXPLORE |
+| 4 | `/#4` | ❄️ The Arctic Station | Nina | GLACIER |
+| 5 | `/#5` | ⛵ The Island Storm | Tom | SURVIVE |
+| 6 | `/#6` | 🏛️ The Lost City Trek | Zara | TEMPLES |
+| 7 | `/#7` | 🛶 The River Rapids | Diego | CURRENT |
+| 8 | `/#8` | 🐘 The Safari Rescue | Amara | RANGERS |
+
+Example: `https://profemanu1999-prog.github.io/english-games/#5` starts
+Group 5's adventure immediately (`#group-5` also works).
 
 Sound: the listening room uses the browser's built-in text-to-speech. If a
 device has no speech voices, the radio messages are shown as text instead.
 
-## Rooms & learning objectives
+## Rooms & learning objectives (identical in every story)
 
 | Room | Objective | Mechanic |
 | ---- | --------- | -------- |
@@ -28,7 +48,7 @@ device has no speech voices, the radio messages are shown as text instead.
 | 🔊 Say That Again | Listening and requesting repetition | Audio quiz (🔊 replay) |
 | 🚁 The Rescue Code | Final puzzle | Unscramble the collected letters |
 
-Each room awards one letter; together they spell the final code word.
+Each room awards one letter; together they spell that story's code word.
 
 **Quiz rooms use a mastery rule:** a wrong pick is marked with ✗ and that
 question comes back in a **retry round** ("⚠️ You made some mistakes!") — the
@@ -44,28 +64,21 @@ list on the final screen. No timers, no fail states.
 
 Open `index.html` and find the two marked blocks near the top of the script:
 
-- `CONFIG` — title, level, code word, pacing, speech rate.
-- `ROOMS` — the story and every room's items. Each room entry explains which
-  fields its mechanic uses (`items`, `text`, `pairs`). Change vocabulary,
-  sentences or story text freely — the engine adapts.
+- `CONFIG` — title, level, pacing, speech rate.
+- `STORIES` — the eight adventures. Each entry has the story (friend,
+  setting, accident, rescuer, code word) and its eight rooms. Change
+  vocabulary, sentences or story text freely — the engine adapts. To add a
+  ninth group, copy a story block, change `name`, `group`, `codeWord` and
+  the content; the lobby and direct links update automatically.
 
-## Publish on GitHub Pages
+## Publish updates
 
-The folder is ready to push as-is (an `index.html` at the repo root is all
-GitHub Pages needs):
+The folder is already live via GitHub Pages — updates are one push:
 
 ```sh
-git init -b main
 git add .
-git commit -m "Add The Mountain Rescue"
-gh repo create english-games --public --source=. --push
-
-# enable Pages
-gh api repos/{owner}/english-games/pages \
-  --method POST -f source[branch]=main -f source[path]=/
+git commit -m "Update games"
+git push
 ```
 
-Or via the web UI: **Settings → Pages → Deploy from branch → main / (root)**.
-
-Add more games later as extra `.html` files and link them from an `index.html`
-hub (use relative links).
+Pages rebuilds automatically (usually within a minute or two).
